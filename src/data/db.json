@@ -1,0 +1,374 @@
+{
+  "streams": [
+    {
+      "id": "stream-all-archives",
+      "title": "Master Archive Stream",
+      "slug": "master-archive",
+      "description": "Comprehensive visual stream of all documented historical and spiritual archives.",
+      "createdAt": "2026-01-01"
+    },
+    {
+      "id": "stream-manuscripts",
+      "title": "Sacred Manuscripts & Calligraphy",
+      "slug": "manuscripts-calligraphy",
+      "description": "Original handwritten volumes, Makalat-e-Hikmat aphorisms, and sacred calligraphy.",
+      "createdAt": "2026-01-02"
+    },
+    {
+      "id": "stream-darulehsan",
+      "title": "Camp Dar-ul-Ehsan Sanctuary",
+      "slug": "camp-dar-ul-ehsan",
+      "description": "Sacred spaces, minarets, serene courtyards, and grounds of Dar-ul-Ehsan.",
+      "createdAt": "2026-01-03"
+    },
+    {
+      "id": "stream-humanitarian",
+      "title": "Khidmat-e-Khalq & Free Eye Hospitals",
+      "slug": "humanitarian-camps",
+      "description": "Historical records of legendary free eye surgical camps and universal charity.",
+      "createdAt": "2026-01-04"
+    },
+    {
+      "id": "stream-assemblies",
+      "title": "Assemblies of Zikr & Spiritual Wisdom",
+      "slug": "assemblies-of-zikr",
+      "description": "Visual heritage of Sunday assemblies of remembrance and spiritual counsel.",
+      "createdAt": "2026-01-05"
+    }
+  ],
+  "images": [
+    {
+      "id": "img-1792879300922-9xaa",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/779958429_1968070983903204_5481620554815159666_n.png?stp=dst-jpg_tt6&cstp=mx1278x1920&ctp=s1278x1920&_nc_cat=104&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=2Slb66JUAW4Q7kNvwGugyb8&_nc_oc=Adody72ldoKFEgLgXbnhHt0TNY5xXIlYBJl-LbvP1FreXNw6pJKJpJLfxJN1ytPjjec&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=2hqqzBL8KkP1vXevwtaC2Q&_nc_ss=7b2a8&oh=00_AQNq1R0ouLksgR9eIUU1IAiE-4DBKbN8MxCGUtTWMIil7w&oe=6AE2E35D",
+      "title": "dvxcv",
+      "referenceNumber": "REF-0894",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792879284396-tv14",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.30808-6/784251432_1623527102676416_3914862987515811923_n.jpg?stp=dst-jpg_tt6&cstp=mx1365x2048&ctp=s1365x2048&_nc_cat=107&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=qvHCEWn7JVcQ7kNvwH_tJ60&_nc_oc=AdoOmLr4RbFLJBOfBRwpOgpuCYeQkSaIsUnZNFuxvKCYY4Cx5OMv4EnUfXK9GS1iIsw&_nc_zt=23&_nc_ht=scontent.flhe21-1.fna&_nc_gid=uX5HFUVJk74U9-DMcXjyPg&_nc_ss=7b2a8&oh=00_AQPAPGanykJDdLe0BP6GpbGaWfOSJyYrJFnXLs9rQcn4TQ&oe=6AE2FE8B",
+      "title": "dfge",
+      "referenceNumber": "REF-4366",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878468525-3gg3",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/799263727_1994903147729177_469920858747859444_n.png?stp=dst-jpg_tt6&cstp=mx1537x1920&ctp=s1537x1920&_nc_cat=102&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=rX1TmNkF7uIQ7kNvwG960YA&_nc_oc=AdqvAgKe4Vt2gukjL2E_zau_If6rV1qKIviiiMpoRBaZKyIO0TDKUVqimZpNeuIukLU&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=W0fwpBIJMrhWnHWlKorxWg&_nc_ss=7b2a8&oh=00_AQPM2c68IT0jtA9yB8robK_MoafLN-_hiq4XDYIcJG2eBA&oe=6AE30DFC",
+      "title": "sdfxc",
+      "referenceNumber": "REF-8496",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878449920-pvhu",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/801885430_2208454439719156_8537820052481023423_n.png?stp=dst-jpg_tt6&cstp=mx1440x1920&ctp=s1440x1920&_nc_cat=100&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=nLq3N8RBmVoQ7kNvwEa09Bs&_nc_oc=AdpeMTSBiR8BUy4kwZoDWrv1hGV9QhnCTzq53Zhq2oVnxfIrHoeb73GQIDsqpRXXijk&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=yvvv6_zK1CJf7B32MmrSrA&_nc_ss=7b2a8&oh=00_AQNEN_3kNb76YSZMXPipLvudtYlB3ygSVE3smWSx-OxDKQ&oe=6AE308A4",
+      "title": "dvxcv",
+      "referenceNumber": "REF-9833",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878431486-071r",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/803465643_1428295559180955_6306131867537663387_n.png?stp=dst-jpg_tt6&cstp=mx1440x1920&ctp=s1440x1920&_nc_cat=102&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=ssdne5_FHagQ7kNvwHE2LXR&_nc_oc=AdpNTv-vftewoadiYiR8U7M376IYpb51CIolGKFk4QZPDSPxQ1Gw4pzWuQyDdSP8wW8&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=_651avGCAYsghPzjOevXAg&_nc_ss=7b2a8&oh=00_AQOT6rujLCEv1QTeqdc-EJ2DELvhQTg4K30fic7JGAUbvg&oe=6AE2DDF4",
+      "title": "dgdv",
+      "referenceNumber": "REF-1410",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878415530-86pd",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/808907023_28067683646236916_2287290084214356669_n.png?stp=dst-jpg_tt6&cstp=mx1086x1448&ctp=s1086x1448&_nc_cat=107&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=iYAp3NjJpEYQ7kNvwH84g8c&_nc_oc=AdpLRiN8wMwovbSwus8B_hwoKf61RVeFQUZg0mjIgoqmknfJWE0oGkkEbPAmdYcwO0o&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=jY8XGtKf5Uadu6Y8vGawWg&_nc_ss=7b2a8&oh=00_AQOYyC593lYBLo42bLTOEaOtUU6qz4RHoEsjXbO2z58TQw&oe=6AE2E7B4",
+      "title": "sdger",
+      "referenceNumber": "REF-5504",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878398068-ex2r",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/809844895_930848736313420_4619181382617229749_n.png?stp=dst-jpg_tt6&cstp=mx1440x1920&ctp=s1440x1920&_nc_cat=105&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=KuMDswictVUQ7kNvwFZHy4l&_nc_oc=Adqn0YEXjD3nAeWlOZ6DGWxFTaRPGttpX0SJY6FjuxRuIRZ3wyGL7KxyRROlHPtJpX8&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=yqq8uv0XLnmV3HFeP39plA&_nc_ss=7b2a8&oh=00_AQN1j6ePpiuq94y9WFyUoIpsrGrfaQeezAWgzsn8JsITzA&oe=6AE2EECE",
+      "title": "eqefds",
+      "referenceNumber": "REF-8031",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878301805-aien",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/811616781_1654135879435542_2287054387673443876_n.png?stp=dst-jpg_tt6&cstp=mx1440x1920&ctp=s1440x1920&_nc_cat=111&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=fWzd6GSb6tMQ7kNvwH9gY1A&_nc_oc=AdoUovgGtGigF28-qAMc3Gwk4lGUxQ2fSlkejCF-4ueKKRkfewnNUb5LQKMdMa9H2cw&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=Dd1cDKS0xrtoODYSLpEkaw&_nc_ss=7b2a8&oh=00_AQMRFqZBr7WpSmDkBMAn02whycDQpux0FJ72_vV2bYSgvA&oe=6AE30225",
+      "title": "etweg",
+      "referenceNumber": "REF-1775",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878277023-mcfe",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/813901743_1125966603195128_2793997019852214030_n.png?stp=dst-jpg_tt6&cstp=mx1086x1448&ctp=s1086x1448&_nc_cat=108&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=-4T3YBuCSo4Q7kNvwER4Ib_&_nc_oc=AdqUzMMer5yAptzGBPSNilx15x4v6u26VWW-wiKvDlhuxrKE9GlurC2buEMNRhxl9hs&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=BAMTwPMKJmvdW3GCJDezHg&_nc_ss=7b2a8&oh=00_AQNMWuaTkyc_DhWRhoqpYsVwnhNcckeWgK1F7kHulHkZtA&oe=6AE3007D",
+      "title": "wer",
+      "referenceNumber": "REF-6997",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878257400-edkb",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/816615444_2925244564493181_300014658783474719_n.png?stp=dst-jpg_tt6&cstp=mx1086x1448&ctp=s1086x1448&_nc_cat=110&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=Hq8rAh6wSp8Q7kNvwHfGxA_&_nc_oc=AdrPg9QmhoXd0YSKISuCW7cvgiOYcER_XfYC1eESWkr188R779nN5z5vUPjlQzCHz6g&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=xHIksuHCVB7_3D0Aea-tYg&_nc_ss=7b2a8&oh=00_AQPN-eX95hBJctqYh5Y4rk0zKggZKtN5HlffoFSP4OwUWg&oe=6AE2EC13",
+      "title": "345",
+      "referenceNumber": "REF-7369",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878239787-dmb8",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/797053812_2326284641474465_4631098348623313442_n.png?stp=dst-jpg_tt6&cstp=mx1086x1448&ctp=s1086x1448&_nc_cat=100&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=qWjtAUWd1o8Q7kNvwFTyV6Q&_nc_oc=Adoa9Q6MTRHJUY-AQAAWW9r83LNVRvCKFSfEhJOIefE52OhEdazms73RWAIzuSwsT58&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=dXLLoJ372gNlQTid410WBw&_nc_ss=7b2a8&oh=00_AQNIHWaZxHnZRgNTYMzeN_3edLL0sK49zXtIXn_9PeHp8Q&oe=6AE312D0",
+      "title": "234",
+      "referenceNumber": "REF-9757",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878224936-vptr",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/796251558_2846791689041309_1745675706374876693_n.png?stp=dst-jpg_tt6&cstp=mx1086x1448&ctp=s1086x1448&_nc_cat=111&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=tiRLXIsd6uMQ7kNvwHl9zR4&_nc_oc=AdqHy1p6dDvj0ULL4kPHZCXJXEpXm8HZ-KYHiabZcRXk2HR0jhdj3UI7lcQk-QmXC00&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=Z4SKvM35AKeYMZeSdPJA8w&_nc_ss=7b2a8&oh=00_AQMFyZNpq6q7RjJa6K_cuhBcZBvSfeqTLbJM5Bm48B0Eiw&oe=6AE2F493",
+      "title": "123",
+      "referenceNumber": "REF-4895",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878094632-rlfh",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/814740713_1728720501687618_2936271677684406917_n.png?stp=dst-jpg_tt6&cstp=mx1086x1448&ctp=s1086x1448&_nc_cat=101&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=DRBCK4CbbGoQ7kNvwGiIULZ&_nc_oc=AdqkuNT-c8c0YhHJUG-on2fqGk689V2UBxbNhyX9Cw9kxTWgYSAYZvTWMeti50iPAN4&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=tYZM0FAxtvWCfmX_xB5AFw&_nc_ss=7b2a8&oh=00_AQNG4F7pM19PYnq8qbpa2zSnIRv5Smmz5447uJe0VI945g&oe=6AE2F2FE",
+      "title": "122",
+      "referenceNumber": "REF-4542",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878066132-vnmw",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/825268208_1560820262394884_2263094209080033646_n.png?stp=dst-jpg_tt6&cstp=mx1086x1448&ctp=s1086x1448&_nc_cat=106&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=H5E_gqp05i4Q7kNvwFeAmZY&_nc_oc=AdoRK1r7Og7Wnbt8rXFtR-eEcKIOc_UGsrSw5vxatpS7kzkNHIQC-xIDoVRvH2Jre6Q&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=rvticLh1uQ7kqUmZebxiSg&_nc_ss=7b2a8&oh=00_AQOSVsAogmQ1rrbMPlgi-LNqhKL5BUrLZY0SM13dM8c-fg&oe=6AE305A5",
+      "title": "q4",
+      "referenceNumber": "REF-6087",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878047334-65sq",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/827511005_1978919646131585_1148433766761286541_n.png?stp=dst-jpg_tt6&cstp=mx1086x1448&ctp=s1086x1448&_nc_cat=111&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=YpcZndiTWnYQ7kNvwFos1Bz&_nc_oc=AdoqiiD5yE0Vf3SWQx1Dis_BPgEcjXRC1kdPNVRdYN2ECdl95sAayGSXuq5sBZPgZH0&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=Guj0pAzIfR7EC4mAR-9J8Q&_nc_ss=7b2a8&oh=00_AQMmM5lYyr7YKcqauVgGU9QwC1Znd0ONySHeL1zHGwjQeQ&oe=6AE2E185",
+      "title": "12",
+      "referenceNumber": "REF-7299",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792878019362-7siq",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/829272003_1412710860962740_2538059675725086244_n.png?stp=dst-jpg_tt6&cstp=mx1537x1920&ctp=s1537x1920&_nc_cat=102&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=u1h9hLGeglcQ7kNvwGR3j4Y&_nc_oc=AdpBmE4UtOhKZzAnD-T9rIGzEP4Ztr4i0D0Njxro8dzC7KKqd1wkzroTtHbiBIcQr14&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=o9j6glRgTTezql8twNF9KQ&_nc_ss=7b2a8&oh=00_AQN72tNx44QKX6fWhGMwMNSMaTE-nPv7UywF2tu6v9mCtw&oe=6AE30C93",
+      "title": "11",
+      "referenceNumber": "REF-9272",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792877978205-8jpj",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/836703915_1978817293082739_452479787927807836_n.png?stp=dst-jpg_tt6&cstp=mx1086x1448&ctp=s1086x1448&_nc_cat=104&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=EoWXQ6WN6_sQ7kNvwFzbmA1&_nc_oc=AdqOFEALYvJW2IjTM3AXvx9T3eOchK0F7jGILkTcUOTqD6eGn1AexN0tRAzKa5etf-I&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=KTtQoFcX8wfziQ3qB3cCEA&_nc_ss=7b2a8&oh=00_AQNa1cr1LnzVzs4PejxFWO-hcXgHPIJRWj3vsQ6WMm1GmA&oe=6AE30232",
+      "title": "10",
+      "referenceNumber": "REF-8165",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792877647611-lgjy",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/839334671_1448184063834907_6877560800228281358_n.png?stp=dst-jpg_tt6&cstp=mx1440x1920&ctp=s1440x1920&_nc_cat=104&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=nwdxKknh8McQ7kNvwGrhGVY&_nc_oc=AdpIzlgMisLdx5A5ad_Ho9t4pWaLSWxt2H-Tl3-JBWh7Wn_i-RKqR5D43rOCl5Tn2D8&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=uL5FxPXr9KZAKaxJsMg5kg&_nc_ss=7b2a8&oh=00_AQMih18lQKcM8STpruWMs0vXUXZ_sb9zv4b8153u5x05Pg&oe=6AE2DDAA",
+      "title": "10",
+      "referenceNumber": "REF-7581",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792877453183-jgpz",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/841121507_39391872403759332_1516271760903771730_n.png?stp=dst-jpg_tt6&cstp=mx1440x1920&ctp=s1440x1920&_nc_cat=106&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=ELr4ZfUHRhkQ7kNvwGQaJ-p&_nc_oc=AdoSGtu7qmWCURiR6VZ_P7zNZJ1fzRE60mmPQz9JoZuY-j-3Ke9J6kRXQkMB30rInpA&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=bjLMtvvWXQztzJkXwUz6XQ&_nc_ss=7b2a8&oh=00_AQMq2543_zd2TC_5e9DpQc5gT0OQzP33gAdF0b5EKubzLA&oe=6AE2DB8C",
+      "title": "7",
+      "referenceNumber": "REF-3150",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792877440785-etgc",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/842954777_1087712054104032_6512402513313356376_n.png?stp=dst-jpg_tt6&cstp=mx1024x1536&ctp=s1024x1536&_nc_cat=102&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=44oK77ItHjoQ7kNvwFYLfiX&_nc_oc=AdrCMJz8rhu4fMInuB7K6rRZUFu55Rs-JUsza-nx12J9CIla7LjdwOq5YTBZadJefno&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=rd7rOfMJ0IAg_8mgGSEDmw&_nc_ss=7b2a8&oh=00_AQMLec05DDZuXPwisHfcEzsIZbAuPeEj3ALNsdRH93f5eg&oe=6AE2F198",
+      "title": "4",
+      "referenceNumber": "REF-0720",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792877384959-r1ye",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/841465235_1104019942493834_7286465508578404568_n.png?stp=dst-jpg_tt6&cstp=mx1122x1402&ctp=s1122x1402&_nc_cat=106&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=IAj1mGr16joQ7kNvwGCTrUQ&_nc_oc=AdrCm1kkKpbcX5M-E7-PTPfNGrhnliDifcYMH52Php38siipf225KmnudEkROOc0aY8&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=1FfCW53XzbsKDKk6kgczRA&_nc_ss=7b2a8&oh=00_AQNm-LvF2DUXu6myQIfD5g3Lz4AUGIPXZc2Iy_A2GkDetA&oe=6AE2EA97",
+      "title": "5h",
+      "referenceNumber": "REF-4867",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792877364134-0w1m",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/845682164_923381003985333_2625077385976218369_n.png?stp=dst-jpg_tt6&cstp=mx924x1152&ctp=s924x1152&_nc_cat=106&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=o9K9nDyv4N4Q7kNvwHcf5rR&_nc_oc=Adr8raBKFv2WCbcL5bpXrf7pH0sq4RYRhUJhluJyaN6zSIU_Tvpzg-4YUc2Ytz3k96c&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=TbIXFXvvKVdwWUEtsYf_Lw&_nc_ss=7b2a8&oh=00_AQN-8XzOnXHQQvOUQMI53ZNNd56WgXqX1ayeIwgAhdyMeg&oe=6AE3014A",
+      "title": "4th",
+      "referenceNumber": "REF-4104",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792877336053-16uo",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/855217735_1826433908495054_1948233005485993045_n.png?stp=dst-jpg_tt6&cstp=mx1280x1920&ctp=s1280x1920&_nc_cat=102&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=VpUJ5uT0opsQ7kNvwFGjHyZ&_nc_oc=AdpdIqTSjaGN9md60BubuLXR55_ZAnxFmz_cz50SrYyaCGFG34GvlViYS2VhHzQ40SA&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=aBafpCjT_wkWQDFHbUR6Bg&_nc_ss=7b2a8&oh=00_AQNDOOlA2G9bg6bKxSOoskTDYFkPPuQPBkeVSmCtW99MgA&oe=6AE2E722",
+      "title": "3",
+      "referenceNumber": "779",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792877275433-pegj",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/855602541_1616606369843954_7640388739296799775_n.png?stp=dst-jpg_tt6&cstp=mx848x1240&ctp=s848x1240&_nc_cat=109&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=QILMXbmDMVsQ7kNvwFxQ-VF&_nc_oc=Ado230wyhNoxJc99BLsEIQRGD9wRKeOb5p-jRA3cmtDnuT0DQe1bd_30V24gI7bDYwY&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=ms8KrmeVJV0BOZCEItviOw&_nc_ss=7b2a8&oh=00_AQPg5uEqcXy_iqHY0IOMoXXQbkS9o7BEapm48T89IB321Q&oe=6AE30E91",
+      "title": "2nd",
+      "referenceNumber": "777",
+      "tags": [],
+      "streamIds": [],
+      "description": "",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    },
+    {
+      "id": "img-1792876128357-14c3",
+      "url": "https://scontent.flhe21-1.fna.fbcdn.net/v/t39.99422-6/860077919_1133668485784673_2099137922572145810_n.png?stp=dst-jpg_tt6&cstp=mx1440x1920&ctp=s1440x1920&_nc_cat=105&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=f727a1&_nc_ohc=8p45-bWpQioQ7kNvwFT22Zk&_nc_oc=AdpRgBbcrR2cTniXDkeErYD9gISSbVmChgIgJ5JoLj2KgaVRmBxK7vFE9kvzgwhuhVQ&_nc_zt=14&_nc_ht=scontent.flhe21-1.fna&_nc_gid=z-FP3T4llqzBStfDGmGEZQ&_nc_ss=7b2a8&oh=00_AQOo5qDyz97aL0nXBZIhDPvqrvlN4Il7ytAKp-KgZI73cg&oe=6AE2EC04",
+      "title": "Makala Number 786",
+      "referenceNumber": "facebook786",
+      "tags": [
+        "pahly-makala"
+      ],
+      "streamIds": [],
+      "description": "first makala",
+      "dateAdded": "2026-10-24",
+      "aspectRatio": "landscape"
+    }
+  ],
+  "audioTracks": [
+    {
+      "id": "track-1792874171932-no3a",
+      "title": "1st",
+      "url": "/music/Yunus Emre Aşkın Yolculuğu Jenerik Müziği.mp3",
+      "artist": "Dar-ul-Ehsan Ambient",
+      "duration": "0:30",
+      "dateAdded": "2026-10-24"
+    },
+    {
+      "id": "track-1792874586336-fk3c",
+      "title": "2nd",
+      "url": "/music/Yunus Emre Aşk Müziği.mp3",
+      "artist": "Dar-ul-Ehsan Ambient",
+      "duration": "0:30",
+      "dateAdded": "2026-10-24"
+    },
+    {
+      "id": "track-1792874658677-mai8",
+      "title": "3rd",
+      "url": "/music/Yunus Emre Dizi Müziği Ney.mp3",
+      "artist": "Dar-ul-Ehsan Ambient",
+      "duration": "0:30",
+      "dateAdded": "2026-10-24"
+    }
+  ],
+  "heroImages": [
+    {
+      "id": "hero-1792879572680-soar",
+      "url": "https://flow-content.google/image/c2a051d1-0aa5-4c6a-994c-ebf37c5afd9a?Expires=1792901141&KeyName=labs-flow-prod-cdn-key&Signature=K7MiBnLHjdOs_kgy802RQkamPw4",
+      "title": "Makalat-E-Hikmat Hero",
+      "dateAdded": "2026-10-24"
+    },
+    {
+      "id": "hero-1792879333317-5fcr",
+      "url": "https://flow-content.google/image/7de2ddab-4d03-4d14-a75a-3c3697d4db9a?Expires=1792900896&KeyName=labs-flow-prod-cdn-key&Signature=aRTkKAKX8wExYdE39r1JC451pm4",
+      "title": "Makalat-E-Hikmat Hero",
+      "dateAdded": "2026-10-24"
+    }
+  ],
+  "settings": {
+    "logoUrl": "https://res.cloudinary.com/hxk2tqpu/image/upload/v1792692313/98byhp.png",
+    "hideSiteName": true,
+    "musicIconUrl": "https://seekerofthesacredknowledge.wordpress.com/wp-content/uploads/2011/08/hazrat-abu-anees-muhammad-barkat-ali-alayhi-rahma.jpg",
+    "waveColor": "#ac790c",
+    "homeBgImageUrl": "https://web.archive.org/web/20150921002137im_/http://www.son.tv.tr/img/background.jpg",
+    "navbarColor": "#000000",
+    "navbarOpacity": 65,
+    "navbarBlur": 20,
+    "facebookUrl": "https://www.facebook.com/786ibrahim1",
+    "whatsappUrl": "https://wa.me/923000000000",
+    "instagramUrl": "https://instagram.com/darulehsan",
+    "tiktokUrl": "https://tiktok.com/@darulehsan",
+    "footerEnglishText": "Preserving the photographic, calligraphic, and manuscript heritage of Hazrat Sufi Abu Anees Muhammad Barkat Ali (رحمۃ اللہ علیہ).",
+    "footerArabicText": "ذکر  •   فکر  •  خدمت  •  تبلیغ"
+  }
+}
