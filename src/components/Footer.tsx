@@ -47,7 +47,7 @@ export default function Footer() {
                 />
               ) : (
                 <span className="font-semibold text-lg sm:text-xl text-white tracking-tight">
-                  Makalat-E-Hikmat
+                  {settings.platformName || 'Rahy Ishq'}
                 </span>
               )}
             </Link>
@@ -135,7 +135,7 @@ export default function Footer() {
 
           {/* Right: Copyright Text */}
           <div className="text-xs text-neutral-400 font-normal">
-            © 2026 Makalat-E-Hikmat. All rights reserved.
+            © 2026 {settings.platformName || 'Rahy Ishq'}. All rights reserved.
           </div>
         </div>
       </div>

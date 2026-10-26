@@ -2,16 +2,18 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Copy, Check, Share2 } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Share2, Download } from 'lucide-react';
 import { FeedImage, StreamItem } from '@/types';
 
 interface ImageDetailClientProps {
   image: FeedImage;
   streams: StreamItem[];
+  platformName?: string;
 }
 
-export default function ImageDetailClient({ image }: ImageDetailClientProps) {
+export default function ImageDetailClient({ image, platformName }: ImageDetailClientProps) {
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
 
   useEffect(() => {
@@ -28,12 +30,41 @@ export default function ImageDetailClient({ image }: ImageDetailClientProps) {
     }
   };
 
+  const handleDownload = async () => {
+    try {
+      setDownloading(true);
+      const res = await fetch(image.url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const safeName = (image.title || image.referenceNumber || image.id || 'image')
+        .trim()
+        .replace(/[^a-zA-Z0-9\u0600-\u06FF_-]/g, '_');
+      const ext = image.url.includes('.png') ? 'png' : image.url.includes('.webp') ? 'webp' : 'jpg';
+      a.download = `${safeName}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      const a = document.createElement('a');
+      a.href = image.url;
+      a.target = '_blank';
+      a.download = `${image.title || 'image'}.jpg`;
+      a.click();
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const handleShare = async () => {
+    const currentPlatform = platformName || 'Rahy Ishq';
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
           title: image.title,
-          text: `${image.title} (${image.referenceNumber})`,
+          text: image.description ? `${image.description} — ${currentPlatform}` : currentPlatform,
           url: shareUrl || window.location.href,
         });
       } catch {
@@ -52,7 +83,7 @@ export default function ImageDetailClient({ image }: ImageDetailClientProps) {
     <div className="bg-white min-h-screen pt-24 sm:pt-28 pb-12 sm:pb-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Top Header: Back Button on left, Copy & Share on right */}
+        {/* Top Header: Back Button on left, Download, Copy & Share on right */}
         <div className="flex items-center justify-between pb-6 mb-8 border-b border-neutral-100">
           <Link
             href="/"
@@ -64,8 +95,18 @@ export default function ImageDetailClient({ image }: ImageDetailClientProps) {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-medium rounded-full transition-colors cursor-pointer disabled:opacity-50"
+              title="Download Image"
+            >
+              <Download className={`w-3.5 h-3.5 ${downloading ? 'animate-bounce' : ''}`} />
+              <span>{downloading ? 'Saving...' : 'Download'}</span>
+            </button>
+
+            <button
               onClick={handleCopyLink}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-medium rounded-full transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-medium rounded-full transition-colors cursor-pointer"
             >
               {copied ? (
                 <>
@@ -82,7 +123,7 @@ export default function ImageDetailClient({ image }: ImageDetailClientProps) {
 
             <button
               onClick={handleShare}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium rounded-full transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium rounded-full transition-colors cursor-pointer"
             >
               <Share2 className="w-3.5 h-3.5" />
               <span>Share</span>

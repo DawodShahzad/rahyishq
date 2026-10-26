@@ -103,4 +103,3 @@ git push -u origin main
 4. Framework preset will automatically be detected as **Next.js**.
 5. Click **"Deploy"**.
 6. In ~60 seconds, your website will be live worldwide with free SSL, global CDN, and automatic image optimization!
-"# rahyishq" 

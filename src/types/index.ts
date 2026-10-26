@@ -14,6 +14,7 @@ export interface HeroImage {
 }
 
 export interface SiteSettings {
+  platformName?: string;
   logoUrl?: string;
   hideSiteName?: boolean;
   musicIconUrl?: string;

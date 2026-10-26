@@ -19,31 +19,35 @@ function getDbData() {
   } catch (err) {
     console.error('Error reading db.json in image page:', err);
   }
-  return { streams: [], images: [], audioTracks: [] };
+  return { streams: [], images: [], audioTracks: [], settings: {} };
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const db = getDbData();
   const image: FeedImage | undefined = db.images?.find((img: FeedImage) => img.id === id);
+  const platformName = db.settings?.platformName?.trim() || 'Rahy Ishq';
 
   if (!image) {
     return {
-      title: 'Image Not Found | Dar-ul-Ehsan Archive',
+      title: `Image Not Found | ${platformName}`,
     };
   }
 
-  const title = `${image.title} (${image.referenceNumber}) | Dar-ul-Ehsan Archive`;
-  const description = image.description 
-    ? image.description.slice(0, 160) + '...'
-    : `Archival record #${image.referenceNumber} from Dar-ul-Ehsan Archive.`;
+  // Social media preview requirements:
+  // - In title preview: ONLY show the image title (no reference number)
+  // - In description: Show platform name (and description if available)
+  const socialTitle = image.title;
+  const socialDescription = image.description 
+    ? `${image.description} — ${platformName}`
+    : platformName;
 
   return {
-    title,
-    description,
+    title: `${socialTitle} | ${platformName}`,
+    description: socialDescription,
     openGraph: {
-      title,
-      description,
+      title: socialTitle,
+      description: socialDescription,
       images: [
         {
           url: image.url,
@@ -53,12 +57,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         },
       ],
       type: 'article',
-      siteName: 'Dar-ul-Ehsan Archive',
+      siteName: platformName,
     },
     twitter: {
       card: 'summary_large_image',
-      title,
-      description,
+      title: socialTitle,
+      description: socialDescription,
       images: [image.url],
     },
   };
@@ -68,6 +72,7 @@ export default async function ImagePage({ params }: PageProps) {
   const { id } = await params;
   const db = getDbData();
   const image: FeedImage | undefined = db.images?.find((img: FeedImage) => img.id === id);
+  const platformName = db.settings?.platformName?.trim() || 'Rahy Ishq';
 
   if (!image) {
     notFound();
@@ -80,6 +85,7 @@ export default async function ImagePage({ params }: PageProps) {
     <ImageDetailClient
       image={publicImage as FeedImage}
       streams={db.streams || []}
+      platformName={platformName}
     />
   );
 }

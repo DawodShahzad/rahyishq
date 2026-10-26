@@ -155,7 +155,7 @@ export default function GalleryPage() {
           Loading gallery images...
         </div>
       ) : filteredImages.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
           {filteredImages.map((image, index) => (
             <div
               key={image.id}
@@ -170,26 +170,26 @@ export default function GalleryPage() {
                   loading="lazy"
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <div className="p-3 rounded-full bg-[#c6ff33] text-black shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
-                    <Eye className="w-5 h-5" />
+                  <div className="p-2 sm:p-3 rounded-full bg-[#c6ff33] text-black shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
+                    <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                 </div>
               </div>
 
-              <div className="p-5">
-                <div className="flex items-center justify-between text-[11px] font-mono text-[#c6ff33] mb-1.5">
-                  <span className="uppercase tracking-wider">{image.category}</span>
+              <div className="p-3 sm:p-5">
+                <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-[#c6ff33] mb-1">
+                  <span className="uppercase tracking-wider truncate">{image.category}</span>
                   {image.year && <span className="text-white/50">{image.year}</span>}
                 </div>
-                <h3 className="text-base font-bold tracking-tightest text-white truncate group-hover:text-[#c6ff33] transition-colors">
+                <h3 className="text-xs sm:text-base font-bold tracking-tightest text-white truncate group-hover:text-[#c6ff33] transition-colors">
                   {image.title}
                 </h3>
-                <p className="text-xs text-white/60 mt-1 line-clamp-2 tracking-tight-custom">
+                <p className="text-[11px] sm:text-xs text-white/60 mt-1 line-clamp-2 tracking-tight-custom">
                   {image.description}
                 </p>
                 {image.location && (
-                  <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center gap-1.5 text-[11px] text-white/40">
-                    <MapPin className="w-3 h-3 text-[#c6ff33]" />
+                  <div className="mt-2.5 pt-2 border-t border-white/[0.06] flex items-center gap-1 text-[10px] sm:text-[11px] text-white/40">
+                    <MapPin className="w-3 h-3 text-[#c6ff33] flex-shrink-0" />
                     <span className="truncate">{image.location}</span>
                   </div>
                 )}

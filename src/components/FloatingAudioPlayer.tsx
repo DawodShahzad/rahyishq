@@ -3,16 +3,95 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AudioTrack } from '@/types';
 
+const STORAGE_KEY = 'site_audio_unmuted';
+
+const DEFAULT_TRACKS: AudioTrack[] = [
+  {
+    id: 'track-1',
+    title: '1st',
+    url: '/api/audio-stream?id=track-1',
+    artist: 'Dar-ul-Ehsan Ambient',
+    duration: '0:30',
+    dateAdded: '2026-10-24',
+  },
+  {
+    id: 'track-2',
+    title: '2nd',
+    url: '/api/audio-stream?id=track-2',
+    artist: 'Dar-ul-Ehsan Ambient',
+    duration: '0:30',
+    dateAdded: '2026-10-24',
+  },
+  {
+    id: 'track-3',
+    title: '3rd',
+    url: '/api/audio-stream?id=track-3',
+    artist: 'Dar-ul-Ehsan Ambient',
+    duration: '0:30',
+    dateAdded: '2026-10-24',
+  },
+];
+
 export default function FloatingAudioPlayer() {
-  const [tracks, setTracks] = useState<AudioTrack[]>([]);
-  const [shuffledIndices, setShuffledIndices] = useState<number[]>([]);
+  const [tracks, setTracks] = useState<AudioTrack[]>(DEFAULT_TRACKS);
+  const [shuffledIndices, setShuffledIndices] = useState<number[]>([0, 1, 2]);
   const [currentIndexOrder, setCurrentIndexOrder] = useState<number>(0);
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(true);
   const [musicIconUrl, setMusicIconUrl] = useState<string>('');
   const [waveColor, setWaveColor] = useState<string>('#84cc16');
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isMutedRef = useRef<boolean>(true);
+  const currentTrackIdRef = useRef<string | null>(null);
+
+  // Keep isMutedRef in sync so event listeners always have latest value
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  // Read saved audio preference from localStorage on initial mount
+  useEffect(() => {
+    let savedPref: string | null = null;
+    try {
+      savedPref = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      // Ignore if localStorage is unavailable
+    }
+
+    const isPrefUnmuted = savedPref === 'true';
+
+    if (isPrefUnmuted) {
+      setIsMuted(false);
+      isMutedRef.current = false;
+    } else {
+      setIsMuted(true);
+      isMutedRef.current = true;
+    }
+
+    if (audioRef.current) {
+      const audio = audioRef.current;
+      if (isPrefUnmuted) {
+        audio.muted = false;
+        audio.volume = 1.0;
+        audio.play()
+          .then(() => {
+            setIsPlaying(true);
+            setIsMuted(false);
+          })
+          .catch(() => {
+            // If browser blocks unmuted playback on reload before user tap,
+            // play muted in background so buffer is hot and first tap produces sound
+            audio.muted = true;
+            audio.play().catch(() => {});
+          });
+      } else {
+        // First visit or user chose mute: start playing muted in background
+        audio.muted = true;
+        audio.play().catch(() => {});
+      }
+    }
+  }, []);
 
   // Fetch playlist & appearance settings (music icon & wave color)
   const loadData = useCallback(async () => {
@@ -51,8 +130,8 @@ export default function FloatingAudioPlayer() {
 
     const handleSettingsUpdated = () => {
       fetch('/api/settings')
-        .then(res => res.json())
-        .then(s => {
+        .then((res) => res.json())
+        .then((s) => {
           if (s.musicIconUrl !== undefined) setMusicIconUrl(s.musicIconUrl);
           if (s.waveColor) setWaveColor(s.waveColor);
         })
@@ -64,7 +143,7 @@ export default function FloatingAudioPlayer() {
   }, [loadData]);
 
   const activeTrackIndex = shuffledIndices.length > 0 ? shuffledIndices[currentIndexOrder] : 0;
-  const currentTrack = tracks[activeTrackIndex];
+  const currentTrack = tracks[activeTrackIndex] || DEFAULT_TRACKS[0];
 
   // Advance to next shuffled track
   const nextTrack = useCallback(() => {
@@ -86,74 +165,142 @@ export default function FloatingAudioPlayer() {
     };
   }, [nextTrack]);
 
-  const currentTrackIdRef = useRef<string | null>(null);
-
-  // Sync audio source ONLY when track actually changes (not on mute/unmute)
+  // Switch audio source when currentTrack changes
   useEffect(() => {
     if (!currentTrack || !audioRef.current) return;
     const audio = audioRef.current;
 
-    // Only load if track has changed to a new one
     if (currentTrackIdRef.current !== currentTrack.id) {
       currentTrackIdRef.current = currentTrack.id;
       audio.src = currentTrack.url;
       audio.load();
 
-      if (!isMuted) {
-        audio.muted = false;
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              setIsPlaying(true);
-            })
-            .catch((err) => {
-              console.log('Autoplay deferred until first user interaction:', err);
-              const unlockPlay = () => {
-                if (audioRef.current && !audioRef.current.paused) return;
-                if (audioRef.current && !isMuted) {
-                  audioRef.current.muted = false;
-                  audioRef.current.play()
-                    .then(() => setIsPlaying(true))
-                    .catch(() => {});
-                }
-                cleanupListeners();
-              };
+      let savedPref: string | null = null;
+      try {
+        savedPref = localStorage.getItem(STORAGE_KEY);
+      } catch {}
 
-              const events = ['click', 'touchstart', 'scroll', 'keydown', 'pointerdown'];
-              const cleanupListeners = () => {
-                events.forEach((evt) => {
-                  window.removeEventListener(evt, unlockPlay);
-                  document.removeEventListener(evt, unlockPlay);
-                });
-              };
-
-              events.forEach((evt) => {
-                window.addEventListener(evt, unlockPlay, { once: true, passive: true });
-                document.addEventListener(evt, unlockPlay, { once: true, passive: true });
-              });
-            });
-        }
-      }
+      const shouldBeUnmuted = savedPref === 'true' && !isMutedRef.current;
+      audio.muted = !shouldBeUnmuted;
+      audio.volume = 1.0;
+      audio.play()
+        .then(() => {
+          if (shouldBeUnmuted) {
+            setIsMuted(false);
+            setIsPlaying(true);
+          }
+        })
+        .catch(() => {
+          if (audioRef.current) {
+            audioRef.current.muted = true;
+            audioRef.current.play().catch(() => {});
+          }
+        });
     }
-  }, [currentTrack, isMuted]);
+  }, [currentTrack]);
 
-  // Toggle Mute / Unmute (Resumes from where left off without restarting)
-  const toggleSound = () => {
+  // The first tap anywhere on the screen shifts the muted music to unmuted and stores in localStorage
+  useEffect(() => {
+    let unmutedThisSession = false;
+
+    const handleFirstGesture = (e: Event) => {
+      if (unmutedThisSession) return;
+
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('[data-audio-control="true"]')) {
+        return; // Let the floating button click handler handle its own click
+      }
+
+      // Check user preference from localStorage: if explicitly muted by user, don't force unmute on random tap
+      let savedPref: string | null = null;
+      try {
+        savedPref = localStorage.getItem(STORAGE_KEY);
+      } catch {}
+
+      // If user never set preference (first time) OR user preference is 'true' (unmuted)
+      if (savedPref !== 'false') {
+        unmutedThisSession = true;
+        try {
+          localStorage.setItem(STORAGE_KEY, 'true');
+        } catch {}
+
+        // Unlock Web Audio context for Safari / Chrome if suspended
+        try {
+          const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+          if (AudioCtx) {
+            const ctx = new AudioCtx();
+            if (ctx.state === 'suspended') {
+              ctx.resume().catch(() => {});
+            }
+          }
+        } catch {}
+
+        if (audioRef.current) {
+          audioRef.current.muted = false;
+          audioRef.current.volume = 1.0;
+          const p = audioRef.current.play();
+          if (p !== undefined) {
+            p.then(() => {
+              setIsMuted(false);
+              setIsPlaying(true);
+            }).catch((err) => {
+              console.warn('Playback error on first tap:', err);
+            });
+          } else {
+            setIsMuted(false);
+            setIsPlaying(true);
+          }
+        }
+
+        cleanupListeners();
+      }
+    };
+
+    const events = ['touchstart', 'pointerdown', 'click', 'keydown'];
+    const cleanupListeners = () => {
+      events.forEach((evt) => {
+        window.removeEventListener(evt, handleFirstGesture, true);
+        document.removeEventListener(evt, handleFirstGesture, true);
+      });
+    };
+
+    events.forEach((evt) => {
+      window.addEventListener(evt, handleFirstGesture, { capture: true, passive: true });
+      document.addEventListener(evt, handleFirstGesture, { capture: true, passive: true });
+    });
+
+    return () => {
+      cleanupListeners();
+    };
+  }, []);
+
+  // Toggle Mute / Unmute from the mini floating button (updates localStorage)
+  const toggleSound = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     if (!audioRef.current) return;
     const audio = audioRef.current;
 
-    if (isMuted || !isPlaying) {
+    if (audio.paused || isMuted || audio.muted) {
+      try {
+        localStorage.setItem(STORAGE_KEY, 'true');
+      } catch {}
+
       audio.muted = false;
+      audio.volume = 1.0;
       audio.play()
         .then(() => {
           setIsMuted(false);
           setIsPlaying(true);
         })
         .catch((err) => {
-          console.warn('Playback prevented:', err);
+          console.warn('Playback error on toggle:', err);
         });
     } else {
+      try {
+        localStorage.setItem(STORAGE_KEY, 'false');
+      } catch {}
+
       audio.pause();
       setIsMuted(true);
       setIsPlaying(false);
@@ -164,13 +311,10 @@ export default function FloatingAudioPlayer() {
     nextTrack();
   };
 
-  if (!currentTrack) return null;
-
   // 24 radial bars for audio waves sunburst
   const numBars = 24;
   const bars = Array.from({ length: numBars }, (_, i) => {
     const angle = (i * 360) / numBars;
-    // Vary heights for realistic audio equalizer effect
     const heights = [6, 12, 8, 14, 7, 11, 15, 9, 13, 6, 10, 14, 8, 12, 16, 7, 11, 14, 9, 13, 7, 11, 15, 8];
     const height = heights[i % heights.length];
     return { angle, height, delay: (i * 0.08) % 1.2 };
@@ -180,9 +324,15 @@ export default function FloatingAudioPlayer() {
     <>
       <audio
         ref={audioRef}
+        src={currentTrack.url}
         onEnded={handleTrackEnded}
-        onPlay={() => setIsPlaying(true)}
+        onPlay={() => {
+          if (audioRef.current && !audioRef.current.muted) {
+            setIsPlaying(true);
+          }
+        }}
         onPause={() => setIsPlaying(false)}
+        playsInline
         preload="auto"
         className="hidden"
       />
@@ -191,10 +341,11 @@ export default function FloatingAudioPlayer() {
       <div className="fixed bottom-6 right-6 z-50 flex items-center justify-center">
         <button
           onClick={toggleSound}
+          data-audio-control="true"
           aria-label={isMuted || !isPlaying ? 'Unmute music' : 'Mute music'}
-          className="relative group flex items-center justify-center w-16 h-16 transition-transform duration-300 hover:scale-105 active:scale-95 focus:outline-none"
+          className="relative group flex items-center justify-center w-16 h-16 transition-transform duration-300 hover:scale-105 active:scale-95 focus:outline-none cursor-pointer"
         >
-          {/* Audio Waves Surrounding the Circle - Only shown when sound is actively playing */}
+          {/* Audio Waves Surrounding the Circle - Only shown when sound is actively unmuted & playing */}
           {!isMuted && isPlaying ? (
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
               <svg 

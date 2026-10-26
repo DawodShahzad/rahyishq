@@ -152,7 +152,7 @@ export default function Navbar() {
             />
           ) : null}
 
-          {/* If hideSiteName is false (or no logo uploaded yet), show Makalat-E-Hikmat */}
+          {/* If hideSiteName is false (or no logo uploaded yet), show platform name */}
           {(!settings.hideSiteName || !settings.logoUrl) && (
             <span
               className={`font-semibold text-base sm:text-lg tracking-tight transition-colors drop-shadow-[0_2px_4px_rgba(0,0,0,0.65)] ${
@@ -163,7 +163,7 @@ export default function Navbar() {
                   : 'text-neutral-900'
               }`}
             >
-              Makalat-E-Hikmat
+              {settings.platformName || 'Rahy Ishq'}
             </span>
           )}
         </Link>

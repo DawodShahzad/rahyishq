@@ -5,6 +5,7 @@ import path from 'path';
 const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
 
 const defaultSettings = {
+  platformName: 'Rahy Ishq',
   logoUrl: '',
   hideSiteName: false,
   musicIconUrl: '',
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { 
+      platformName,
       logoUrl, 
       hideSiteName, 
       musicIconUrl,
@@ -71,6 +73,9 @@ export async function POST(req: Request) {
     const db = readDb();
     if (!db.settings) db.settings = { ...defaultSettings };
 
+    if (platformName !== undefined) {
+      db.settings.platformName = typeof platformName === 'string' && platformName.trim() ? platformName.trim() : 'Rahy Ishq';
+    }
     if (logoUrl !== undefined) {
       db.settings.logoUrl = typeof logoUrl === 'string' ? logoUrl.trim() : '';
     }

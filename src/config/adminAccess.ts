@@ -5,7 +5,7 @@
  * Simply set ENABLE_ADMIN_ACCESS = false to completely lock and disable
  * the admin panel route (/admin).
  */
-export const ENABLE_ADMIN_ACCESS = false;
+export const ENABLE_ADMIN_ACCESS = true;
 
 /**
  * Default access passcode for extra security in development or testing.

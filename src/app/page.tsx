@@ -186,13 +186,13 @@ function FeedContent() {
         {/* Main Feed Container */}
         <div className="max-w-7xl mx-auto px-3 sm:px-5 lg:px-6">
 
-        {/* Pure Image Grid with reduced gaps and reduced corner radius */}
+        {/* Pure Image Grid with 2 columns on mobile, 3 on desktop with flexible natural height */}
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <div
                 key={n}
-                className="bg-neutral-100 animate-pulse rounded-lg sm:rounded-xl h-64"
+                className="bg-neutral-100 animate-pulse rounded-lg sm:rounded-xl h-48 sm:h-64"
               />
             ))}
           </div>
@@ -211,11 +211,11 @@ function FeedContent() {
             )}
           </div>
         ) : (
-          <div className="columns-1 sm:columns-2 lg:columns-3 gap-3 sm:gap-4 space-y-3 sm:space-y-4">
+          <div className="columns-2 sm:columns-2 lg:columns-3 gap-2.5 sm:gap-4">
             {displayImages.map((image) => (
               <div
                 key={image.id}
-                className="break-inside-avoid bg-transparent rounded-lg sm:rounded-xl overflow-hidden border-0 shadow-xs hover:shadow-lg transition-shadow duration-300 group isolate [transform:translateZ(0)] [backface-visibility:hidden]"
+                className="break-inside-avoid mb-2.5 sm:mb-4 bg-transparent rounded-lg sm:rounded-xl overflow-hidden border-0 shadow-xs hover:shadow-lg transition-shadow duration-300 group isolate [transform:translateZ(0)] [backface-visibility:hidden]"
               >
                 <Link
                   href={`/image/${image.id}`}

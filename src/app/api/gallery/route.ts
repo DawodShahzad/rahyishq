@@ -45,14 +45,17 @@ export async function POST(req: Request) {
       );
     }
 
-    // Basic URL validation
-    try {
-      new URL(url);
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid URL format. Please provide a full direct image URL (e.g. https://...)' },
-        { status: 400 }
-      );
+    // Basic URL validation (supports http, https, and data:image/ URLs)
+    const isDataUrl = typeof url === 'string' && url.startsWith('data:image/');
+    if (!isDataUrl) {
+      try {
+        new URL(url);
+      } catch {
+        return NextResponse.json(
+          { error: 'Invalid URL format. Please provide a full direct image URL (e.g. https://...) or an image file.' },
+          { status: 400 }
+        );
+      }
     }
 
     const newImage: GalleryImage = {
