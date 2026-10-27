@@ -9,6 +9,8 @@ export interface StreamItem {
 export interface HeroImage {
   id: string;
   url: string;
+  mediaType?: 'image' | 'video';
+  audioUrl?: string;
   title?: string;
   dateAdded: string;
 }

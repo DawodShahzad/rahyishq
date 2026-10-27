@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { 
   Plus, 
@@ -24,7 +24,12 @@ import {
   Camera,
   Sliders,
   Palette,
-  Share2
+  Share2,
+  Film,
+  Play,
+  Pause,
+  Upload,
+  X
 } from 'lucide-react';
 import { FeedImage, StreamItem, AudioTrack, HeroImage } from '@/types';
 import { ENABLE_ADMIN_ACCESS, ADMIN_PASSCODE } from '@/config/adminAccess';
@@ -74,10 +79,14 @@ export default function AdminPage() {
   const [imageAspectRatio, setImageAspectRatio] = useState<'landscape' | 'portrait' | 'square'>('landscape');
   const [isSubmittingImage, setIsSubmittingImage] = useState(false);
 
-  // Form states: New Hero Image
+  // Form states: New Hero Media (Image or Video)
+  const [heroMediaType, setHeroMediaType] = useState<'image' | 'video'>('image');
   const [heroUrl, setHeroUrl] = useState('');
   const [heroTitle, setHeroTitle] = useState('');
+  const [heroAudioUrl, setHeroAudioUrl] = useState('');
   const [isSubmittingHero, setIsSubmittingHero] = useState(false);
+  const [activePreviewAudio, setActivePreviewAudio] = useState<string | null>(null);
+  const adminAudioPreviewRef = useRef<HTMLAudioElement | null>(null);
 
   // Form states: New Stream
   const [streamTitle, setStreamTitle] = useState('');
@@ -324,11 +333,31 @@ export default function AdminPage() {
     }
   };
 
-  // Submit Hero Image
+  // Audio preview helper for admin testing
+  const toggleAudioPreview = (url: string) => {
+    if (!adminAudioPreviewRef.current) return;
+    const player = adminAudioPreviewRef.current;
+    if (activePreviewAudio === url && !player.paused) {
+      player.pause();
+      setActivePreviewAudio(null);
+    } else {
+      player.src = url;
+      player.load();
+      player.play()
+        .then(() => {
+          setActivePreviewAudio(url);
+        })
+        .catch(() => {
+          showNotify('error', 'Could not play audio preview. Verify the link/file.');
+        });
+    }
+  };
+
+  // Submit Hero Media (Image or Video with optional separate audio)
   const handleAddHero = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!heroUrl.trim()) {
-      showNotify('error', 'Hero Image Link (URL) is required.');
+      showNotify('error', 'Hero Media (URL or file) is required.');
       return;
     }
 
@@ -339,21 +368,29 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: heroUrl,
+          mediaType: heroMediaType,
           title: heroTitle,
+          audioUrl: heroAudioUrl.trim() || undefined,
         }),
       });
 
       if (res.ok) {
-        showNotify('success', 'Hero image added! It will be randomly shown on homepage.');
+        showNotify('success', 'Hero media added! It will be randomly shown on homepage.');
         setHeroUrl('');
         setHeroTitle('');
+        setHeroAudioUrl('');
+        setHeroMediaType('image');
+        if (adminAudioPreviewRef.current) {
+          adminAudioPreviewRef.current.pause();
+          setActivePreviewAudio(null);
+        }
         fetchData();
       } else {
         const data = await res.json();
-        showNotify('error', data.error || 'Failed to add hero image.');
+        showNotify('error', data.error || 'Failed to add hero media.');
       }
     } catch (err: any) {
-      showNotify('error', err.message || 'Error adding hero image');
+      showNotify('error', err.message || 'Error adding hero media');
     } finally {
       setIsSubmittingHero(false);
     }
@@ -1003,39 +1040,146 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* TAB 2: HERO IMAGES MANAGEMENT */}
+      {/* TAB 2: HERO MEDIA MANAGEMENT (IMAGE & VIDEO + SEPARATE AUDIO) */}
       {activeTab === 'hero' && (
         <div className="space-y-10">
           <div className="bg-neutral-50/60 border border-neutral-200 rounded-3xl p-6 sm:p-8 max-w-2xl">
             <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
               <LayoutTemplate className="w-4 h-4" />
-              <span>Add Homepage Hero Image</span>
+              <span>Add Homepage Hero Media (Image or Video)</span>
             </h2>
             <p className="text-xs text-neutral-500 mb-6">
-              Hero images are displayed edge-to-edge directly under the navbar on the homepage. Every time a visitor opens or refreshes the page, one hero image is selected randomly from this resource pool.
+              Hero media is displayed edge-to-edge under the navbar on the homepage. You can choose a static image or a looping video, and optionally attach a separate audio track that plays exclusively while visitors view this hero section.
             </p>
 
-            <form onSubmit={handleAddHero} className="space-y-4">
+            <form onSubmit={handleAddHero} className="space-y-5">
+              {/* Media Type Toggle: Image vs Video */}
               <div>
-                <ImageFileInput
-                  value={heroUrl}
-                  onChange={(url, filename) => {
-                    setHeroUrl(url);
-                    if (filename && !heroTitle.trim()) {
-                      const cleanTitle = filename
-                        .replace(/\.[^/.]+$/, '')
-                        .replace(/[-_]+/g, ' ')
-                        .replace(/\b\w/g, (c) => c.toUpperCase())
-                        .trim();
-                      if (cleanTitle) setHeroTitle(cleanTitle);
-                    }
-                  }}
-                  label="Hero Image File or Direct Link"
-                  required
-                  helperText="Upload a high-resolution hero photo from your computer or provide a direct web image link."
-                />
+                <label className="block text-xs font-semibold text-neutral-700 mb-2">
+                  Hero Media Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeroMediaType('image');
+                      setHeroUrl('');
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                      heroMediaType === 'image'
+                        ? 'bg-neutral-900 text-white border-neutral-900 shadow-sm'
+                        : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    <span>Static Image</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeroMediaType('video');
+                      setHeroUrl('');
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                      heroMediaType === 'video'
+                        ? 'bg-neutral-900 text-white border-neutral-900 shadow-sm'
+                        : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <Film className="w-4 h-4" />
+                    <span>Hero Video (MP4 / WebM)</span>
+                  </button>
+                </div>
               </div>
 
+              {/* Media Input: Image File/URL vs Video File/URL */}
+              {heroMediaType === 'image' ? (
+                <div>
+                  <ImageFileInput
+                    value={heroUrl}
+                    onChange={(url, filename) => {
+                      setHeroUrl(url);
+                      if (filename && !heroTitle.trim()) {
+                        const cleanTitle = filename
+                          .replace(/\.[^/.]+$/, '')
+                          .replace(/[-_]+/g, ' ')
+                          .replace(/\b\w/g, (c) => c.toUpperCase())
+                          .trim();
+                        if (cleanTitle) setHeroTitle(cleanTitle);
+                      }
+                    }}
+                    label="Hero Image File or Direct Link"
+                    required
+                    helperText="Upload a high-resolution hero photo from your computer or provide a direct web image link."
+                  />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <label className="block text-xs font-semibold text-neutral-700">
+                    Hero Video File or Direct Link <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={heroUrl}
+                      onChange={(e) => setHeroUrl(e.target.value)}
+                      placeholder="https://... direct .mp4 or .webm link or choose a video file"
+                      className="flex-1 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    />
+                    <label className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-800 cursor-pointer transition-colors whitespace-nowrap">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Video File</span>
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 60 * 1024 * 1024) {
+                              showNotify('error', 'Video is larger than 60MB. Please use a smaller clip or direct URL.');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setHeroUrl(reader.result as string);
+                              if (!heroTitle.trim()) {
+                                const cleanTitle = file.name
+                                  .replace(/\.[^/.]+$/, '')
+                                  .replace(/[-_]+/g, ' ')
+                                  .replace(/\b\w/g, (c) => c.toUpperCase())
+                                  .trim();
+                                if (cleanTitle) setHeroTitle(cleanTitle);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">
+                    Supports MP4, WebM, and MOV formats. Videos loop automatically as the hero background.
+                  </p>
+                  {heroUrl && (
+                    <div className="mt-2 rounded-2xl overflow-hidden border border-neutral-200 bg-black max-h-56 flex items-center justify-center relative">
+                      <video
+                        src={heroUrl}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-44 object-cover"
+                      />
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-mono">
+                        Video Preview
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Hero Title */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                   Hero Title / Identifier (Optional admin note)
@@ -1049,58 +1193,247 @@ export default function AdminPage() {
                 />
               </div>
 
+              {/* SEPARATE AUDIO OPTION FOR HERO */}
+              <div className="p-4 bg-white border border-neutral-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 text-neutral-900" />
+                    <label className="text-xs font-bold text-neutral-900">
+                      Separate Hero Audio Track (Optional)
+                    </label>
+                  </div>
+                  {heroAudioUrl && (
+                    <button
+                      type="button"
+                      onClick={() => toggleAudioPreview(heroAudioUrl)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                    >
+                      {activePreviewAudio === heroAudioUrl ? (
+                        <>
+                          <Pause className="w-3 h-3 text-red-600" />
+                          <span>Stop Preview</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3 h-3 text-emerald-600" />
+                          <span>Test Audio</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-neutral-500 leading-relaxed">
+                  When set, this audio plays exclusively while the visitor is viewing the hero section. When they scroll down into the images, this audio pauses and the platform&apos;s main playlist resumes.
+                </p>
+
+                {/* Quick Selection from existing playlist tracks */}
+                {audioTracks.length > 0 && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
+                      Choose from Uploaded Playlist Tracks:
+                    </label>
+                    <select
+                      value={audioTracks.some((t) => t.url === heroAudioUrl) ? heroAudioUrl : ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setHeroAudioUrl(e.target.value);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    >
+                      <option value="">-- Choose from existing audio library --</option>
+                      {audioTracks.map((track) => (
+                        <option key={track.id} value={track.url}>
+                          {track.title} {track.artist ? `(${track.artist})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Custom Audio URL or Upload */}
+                <div className="pt-2 border-t border-neutral-100">
+                  <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
+                    Or Enter Custom Audio URL / Upload Audio File:
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={heroAudioUrl}
+                      onChange={(e) => setHeroAudioUrl(e.target.value)}
+                      placeholder="e.g. /api/audio-stream?id=... or https://... audio link"
+                      className="flex-1 px-3 py-2 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 font-mono focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    />
+                    <label className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-700 cursor-pointer transition-colors whitespace-nowrap">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Audio File</span>
+                      <input
+                        type="file"
+                        accept="audio/mp3,audio/wav,audio/ogg,audio/mpeg,audio/aac,audio/m4a"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 30 * 1024 * 1024) {
+                              showNotify('error', 'Audio file is too large (max 30MB).');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setHeroAudioUrl(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                    {heroAudioUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activePreviewAudio === heroAudioUrl && adminAudioPreviewRef.current) {
+                            adminAudioPreviewRef.current.pause();
+                            setActivePreviewAudio(null);
+                          }
+                          setHeroAudioUrl('');
+                        }}
+                        className="px-2.5 py-2 text-xs text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                        title="Clear Audio"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={isSubmittingHero}
-                className="px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm"
+                className="px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer"
               >
-                {isSubmittingHero ? 'Adding Hero Image...' : 'Add Hero Image'}
+                {isSubmittingHero ? 'Adding Hero Media...' : 'Add Hero Media'}
               </button>
             </form>
           </div>
 
           <div>
             <h2 className="text-base font-bold text-neutral-900 mb-4">
-              Active Hero Images Pool ({heroImages.length})
+              Active Hero Media Pool ({heroImages.length})
             </h2>
 
             {heroImages.length === 0 ? (
               <p className="text-xs text-neutral-400 italic p-6 bg-neutral-50 rounded-2xl border border-neutral-200">
-                No hero images added yet. Add one above to display under the navbar.
+                No hero media added yet. Add one above to display under the navbar.
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {heroImages.map((hero) => (
-                  <div
-                    key={hero.id}
-                    className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between"
-                  >
-                    <div className="relative h-44 bg-neutral-100 overflow-hidden">
-                      <img
-                        src={hero.url}
-                        alt={hero.title || 'Hero'}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="p-4 flex items-center justify-between gap-2">
-                      <div>
-                        <h4 className="text-xs font-semibold text-neutral-900 truncate max-w-[200px]">
-                          {hero.title || 'Untitled Hero'}
-                        </h4>
-                        <span className="text-[10px] text-neutral-400">
-                          Added {hero.dateAdded}
-                        </span>
+                {heroImages.map((hero) => {
+                  const isVid =
+                    hero.mediaType === 'video' ||
+                    Boolean(hero.url.match(/\.(mp4|webm|mov|ogg)(\?.*)?$/i)) ||
+                    hero.url.startsWith('data:video/');
+
+                  return (
+                    <div
+                      key={hero.id}
+                      className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between"
+                    >
+                      <div className="relative h-44 bg-neutral-900 overflow-hidden">
+                        {isVid ? (
+                          <video
+                            src={hero.url}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <img
+                            src={hero.url}
+                            alt={hero.title || 'Hero'}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-semibold backdrop-blur-xs flex items-center gap-1">
+                            {isVid ? (
+                              <>
+                                <Film className="w-3 h-3 text-[#c6ff33]" />
+                                <span>Video</span>
+                              </>
+                            ) : (
+                              <>
+                                <ImageIcon className="w-3 h-3 text-white" />
+                                <span>Image</span>
+                              </>
+                            )}
+                          </span>
+                          {hero.audioUrl && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-600/90 text-white text-[10px] font-semibold backdrop-blur-xs flex items-center gap-1">
+                              <Volume2 className="w-3 h-3" />
+                              <span>Audio</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <button
-                        onClick={() => handleDeleteHero(hero.id)}
-                        className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete hero image"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+
+                      <div className="p-4 flex flex-col justify-between gap-3 flex-1">
+                        <div>
+                          <h4 className="text-xs font-semibold text-neutral-900 truncate">
+                            {hero.title || 'Untitled Hero'}
+                          </h4>
+                          <span className="text-[10px] text-neutral-400 block mt-0.5">
+                            Added {hero.dateAdded}
+                          </span>
+
+                          {hero.audioUrl ? (
+                            <div className="mt-2.5 pt-2 border-t border-neutral-100 flex items-center justify-between">
+                              <span className="text-[10px] text-emerald-700 font-medium truncate max-w-[140px]">
+                                🎵 Dedicated Hero Audio
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleAudioPreview(hero.audioUrl!)}
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition-colors cursor-pointer"
+                              >
+                                {activePreviewAudio === hero.audioUrl ? (
+                                  <>
+                                    <Pause className="w-2.5 h-2.5 text-red-600" />
+                                    <span>Stop</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play className="w-2.5 h-2.5 text-emerald-600" />
+                                    <span>Listen</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="mt-2.5 pt-2 border-t border-neutral-100">
+                              <span className="text-[10px] text-neutral-400 italic">
+                                Plays platform playlist
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-end pt-1">
+                          <button
+                            onClick={() => handleDeleteHero(hero.id)}
+                            className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            title="Delete hero media"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1955,6 +2288,12 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Hidden audio element for previewing hero audio tracks in admin */}
+      <audio
+        ref={adminAudioPreviewRef}
+        onEnded={() => setActivePreviewAudio(null)}
+        className="hidden"
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { Search, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -33,8 +33,45 @@ function FeedContent() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchVisible, setSearchVisible] = useState<boolean>(false);
+  const heroRef = useRef<HTMLElement | null>(null);
 
   const searchParams = useSearchParams();
+
+  // Scroll detection for Hero audio vs Playlist audio
+  useEffect(() => {
+    if (!randomHero || !randomHero.audioUrl) {
+      window.dispatchEvent(new CustomEvent('hero-audio-inactive'));
+      return;
+    }
+
+    const heroEl = heroRef.current;
+    if (!heroEl) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.15) {
+          window.dispatchEvent(
+            new CustomEvent('hero-audio-active', {
+              detail: { audioUrl: randomHero.audioUrl },
+            })
+          );
+        } else {
+          window.dispatchEvent(new CustomEvent('hero-audio-inactive'));
+        }
+      },
+      {
+        threshold: [0, 0.15, 0.5],
+      }
+    );
+
+    observer.observe(heroEl);
+
+    return () => {
+      observer.disconnect();
+      window.dispatchEvent(new CustomEvent('hero-audio-inactive'));
+    };
+  }, [randomHero]);
 
   // Read URL query params
   useEffect(() => {
@@ -167,16 +204,32 @@ function FeedContent() {
 
       {/* Main Page Content Layer (Relative z-10 over fixed background) */}
       <div className="relative z-10 w-full">
-        {/* Edge-to-Edge Hero Image Beneath Transparent Navbar (NO darkness below navbar) */}
+        {/* Edge-to-Edge Hero Media Beneath Transparent Navbar (NO darkness below navbar) */}
         {randomHero ? (
-          <section className="relative w-full overflow-hidden bg-neutral-100 mb-6 sm:mb-8 shadow-xs">
-            {/* Reduced height, edge-to-edge full width image */}
-            <div className="w-full h-52 sm:h-64 md:h-72 lg:h-80">
-              <img
-                src={randomHero.url}
-                alt="Hero"
-                className="w-full h-full object-cover"
-              />
+          <section
+            ref={heroRef}
+            className="relative w-full overflow-hidden bg-neutral-100 mb-6 sm:mb-8 shadow-xs"
+          >
+            {/* Cinematic height, edge-to-edge full width media */}
+            <div className="w-full h-64 sm:h-80 md:h-96 lg:h-[420px]">
+              {randomHero.mediaType === 'video' ||
+              Boolean(randomHero.url.match(/\.(mp4|webm|mov|ogg)(\?.*)?$/i)) ||
+              randomHero.url.startsWith('data:video/') ? (
+                <video
+                  src={randomHero.url}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <img
+                  src={randomHero.url}
+                  alt={randomHero.title || 'Hero'}
+                  className="w-full h-full object-cover"
+                />
+              )}
             </div>
           </section>
         ) : (

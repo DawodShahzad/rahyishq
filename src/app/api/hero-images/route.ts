@@ -35,16 +35,21 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { url, title } = body;
+    const { url, title, mediaType, audioUrl } = body;
 
     if (!url || !url.trim()) {
-      return NextResponse.json({ error: 'Hero Image Link (URL) is required.' }, { status: 400 });
+      return NextResponse.json({ error: 'Hero Media Link (URL or file) is required.' }, { status: 400 });
     }
+
+    const trimmedUrl = url.trim();
+    const isVideo = mediaType === 'video' || Boolean(trimmedUrl.match(/\.(mp4|webm|mov|ogg)(\?.*)?$/i)) || trimmedUrl.startsWith('data:video/');
 
     const newHero: HeroImage = {
       id: `hero-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      url: url.trim(),
+      url: trimmedUrl,
+      mediaType: isVideo ? 'video' : 'image',
       title: title ? title.trim() : 'Makalat-E-Hikmat Hero',
+      audioUrl: audioUrl && audioUrl.trim() ? audioUrl.trim() : undefined,
       dateAdded: new Date().toISOString().split('T')[0],
     };
 

@@ -37,18 +37,29 @@ export default function FloatingAudioPlayer() {
   const [shuffledIndices, setShuffledIndices] = useState<number[]>([0, 1, 2]);
   const [currentIndexOrder, setCurrentIndexOrder] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isHeroPlaying, setIsHeroPlaying] = useState<boolean>(false);
+  const [isHeroActive, setIsHeroActive] = useState<boolean>(false);
+  const [heroAudioUrl, setHeroAudioUrl] = useState<string>('');
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [musicIconUrl, setMusicIconUrl] = useState<string>('');
   const [waveColor, setWaveColor] = useState<string>('#84cc16');
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const heroAudioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isMutedRef = useRef<boolean>(true);
+  const isHeroActiveRef = useRef<boolean>(false);
   const currentTrackIdRef = useRef<string | null>(null);
 
   // Keep isMutedRef in sync so event listeners always have latest value
   useEffect(() => {
     isMutedRef.current = isMuted;
   }, [isMuted]);
+
+  // Keep isHeroActiveRef in sync
+  useEffect(() => {
+    isHeroActiveRef.current = isHeroActive;
+  }, [isHeroActive]);
 
   // Read saved audio preference from localStorage on initial mount
   useEffect(() => {
@@ -69,7 +80,7 @@ export default function FloatingAudioPlayer() {
       isMutedRef.current = true;
     }
 
-    if (audioRef.current) {
+    if (audioRef.current && !isHeroActiveRef.current) {
       const audio = audioRef.current;
       if (isPrefUnmuted) {
         audio.muted = false;
@@ -142,6 +153,84 @@ export default function FloatingAudioPlayer() {
     return () => window.removeEventListener('site-settings-updated', handleSettingsUpdated);
   }, [loadData]);
 
+  // Handle hero audio activation / deactivation events
+  useEffect(() => {
+    const handleHeroActive = (e: any) => {
+      const audioUrl = e.detail?.audioUrl;
+      if (!audioUrl) return;
+
+      setIsHeroActive(true);
+      isHeroActiveRef.current = true;
+      setHeroAudioUrl(audioUrl);
+
+      // Pause regular playlist audio
+      if (audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+
+      // Play hero audio
+      if (heroAudioRef.current) {
+        const heroAudio = heroAudioRef.current;
+        if (heroAudio.src !== audioUrl) {
+          heroAudio.src = audioUrl;
+          heroAudio.load();
+        }
+
+        const shouldBeUnmuted = !isMutedRef.current;
+        heroAudio.muted = !shouldBeUnmuted;
+        heroAudio.volume = 1.0;
+        heroAudio.play()
+          .then(() => {
+            if (shouldBeUnmuted) {
+              setIsHeroPlaying(true);
+            }
+          })
+          .catch(() => {
+            heroAudio.muted = true;
+            heroAudio.play().catch(() => {});
+          });
+      }
+    };
+
+    const handleHeroInactive = () => {
+      if (!isHeroActiveRef.current) return;
+      setIsHeroActive(false);
+      isHeroActiveRef.current = false;
+      setIsHeroPlaying(false);
+
+      // Pause hero audio
+      if (heroAudioRef.current) {
+        heroAudioRef.current.pause();
+      }
+
+      // Resume regular playlist audio
+      if (audioRef.current) {
+        const audio = audioRef.current;
+        const shouldBeUnmuted = !isMutedRef.current;
+        audio.muted = !shouldBeUnmuted;
+        audio.volume = 1.0;
+        audio.play()
+          .then(() => {
+            if (shouldBeUnmuted) {
+              setIsPlaying(true);
+            }
+          })
+          .catch(() => {
+            audio.muted = true;
+            audio.play().catch(() => {});
+          });
+      }
+    };
+
+    window.addEventListener('hero-audio-active', handleHeroActive);
+    window.addEventListener('hero-audio-inactive', handleHeroInactive);
+    return () => {
+      window.removeEventListener('hero-audio-active', handleHeroActive);
+      window.removeEventListener('hero-audio-inactive', handleHeroInactive);
+    };
+  }, []);
+
   const activeTrackIndex = shuffledIndices.length > 0 ? shuffledIndices[currentIndexOrder] : 0;
   const currentTrack = tracks[activeTrackIndex] || DEFAULT_TRACKS[0];
 
@@ -151,7 +240,7 @@ export default function FloatingAudioPlayer() {
     setCurrentIndexOrder((prev) => (prev + 1) % shuffledIndices.length);
   }, [shuffledIndices]);
 
-  // 10-minute track rotation
+  // 10-minute track rotation for playlist
   useEffect(() => {
     const TEN_MINUTES_MS = 10 * 60 * 1000;
     if (timerRef.current) clearInterval(timerRef.current);
@@ -183,19 +272,23 @@ export default function FloatingAudioPlayer() {
       const shouldBeUnmuted = savedPref === 'true' && !isMutedRef.current;
       audio.muted = !shouldBeUnmuted;
       audio.volume = 1.0;
-      audio.play()
-        .then(() => {
-          if (shouldBeUnmuted) {
-            setIsMuted(false);
-            setIsPlaying(true);
-          }
-        })
-        .catch(() => {
-          if (audioRef.current) {
-            audioRef.current.muted = true;
-            audioRef.current.play().catch(() => {});
-          }
-        });
+
+      // Only play playlist if hero audio is NOT currently active
+      if (!isHeroActiveRef.current) {
+        audio.play()
+          .then(() => {
+            if (shouldBeUnmuted) {
+              setIsMuted(false);
+              setIsPlaying(true);
+            }
+          })
+          .catch(() => {
+            if (audioRef.current) {
+              audioRef.current.muted = true;
+              audioRef.current.play().catch(() => {});
+            }
+          });
+      }
     }
   }, [currentTrack]);
 
@@ -235,21 +328,26 @@ export default function FloatingAudioPlayer() {
           }
         } catch {}
 
-        if (audioRef.current) {
+        setIsMuted(false);
+        isMutedRef.current = false;
+
+        // Unmute whichever track is currently active
+        if (isHeroActiveRef.current && heroAudioRef.current) {
+          heroAudioRef.current.muted = false;
+          heroAudioRef.current.volume = 1.0;
+          heroAudioRef.current.play()
+            .then(() => {
+              setIsHeroPlaying(true);
+            })
+            .catch(() => {});
+        } else if (audioRef.current) {
           audioRef.current.muted = false;
           audioRef.current.volume = 1.0;
-          const p = audioRef.current.play();
-          if (p !== undefined) {
-            p.then(() => {
-              setIsMuted(false);
+          audioRef.current.play()
+            .then(() => {
               setIsPlaying(true);
-            }).catch((err) => {
-              console.warn('Playback error on first tap:', err);
-            });
-          } else {
-            setIsMuted(false);
-            setIsPlaying(true);
-          }
+            })
+            .catch(() => {});
         }
 
         cleanupListeners();
@@ -278,32 +376,52 @@ export default function FloatingAudioPlayer() {
   const toggleSound = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    if (!audioRef.current) return;
-    const audio = audioRef.current;
 
-    if (audio.paused || isMuted || audio.muted) {
+    const isCurrentlySilent = isMuted || (!isPlaying && !isHeroPlaying);
+
+    if (isCurrentlySilent) {
       try {
         localStorage.setItem(STORAGE_KEY, 'true');
       } catch {}
 
-      audio.muted = false;
-      audio.volume = 1.0;
-      audio.play()
-        .then(() => {
-          setIsMuted(false);
-          setIsPlaying(true);
-        })
-        .catch((err) => {
-          console.warn('Playback error on toggle:', err);
-        });
+      setIsMuted(false);
+      isMutedRef.current = false;
+
+      if (isHeroActiveRef.current && heroAudioRef.current) {
+        heroAudioRef.current.muted = false;
+        heroAudioRef.current.volume = 1.0;
+        heroAudioRef.current.play()
+          .then(() => {
+            setIsHeroPlaying(true);
+          })
+          .catch((err) => console.warn('Hero audio play error:', err));
+      } else if (audioRef.current) {
+        audioRef.current.muted = false;
+        audioRef.current.volume = 1.0;
+        audioRef.current.play()
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch((err) => console.warn('Playlist play error:', err));
+      }
     } else {
       try {
         localStorage.setItem(STORAGE_KEY, 'false');
       } catch {}
 
-      audio.pause();
       setIsMuted(true);
+      isMutedRef.current = true;
       setIsPlaying(false);
+      setIsHeroPlaying(false);
+
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.muted = true;
+      }
+      if (heroAudioRef.current) {
+        heroAudioRef.current.pause();
+        heroAudioRef.current.muted = true;
+      }
     }
   };
 
@@ -320,18 +438,37 @@ export default function FloatingAudioPlayer() {
     return { angle, height, delay: (i * 0.08) % 1.2 };
   });
 
+  const isAnyAudioActive = !isMuted && (isHeroActive ? isHeroPlaying : isPlaying);
+
   return (
     <>
+      {/* Platform Playlist Audio Element */}
       <audio
         ref={audioRef}
         src={currentTrack.url}
         onEnded={handleTrackEnded}
         onPlay={() => {
-          if (audioRef.current && !audioRef.current.muted) {
+          if (audioRef.current && !audioRef.current.muted && !isHeroActiveRef.current) {
             setIsPlaying(true);
           }
         }}
         onPause={() => setIsPlaying(false)}
+        playsInline
+        preload="auto"
+        className="hidden"
+      />
+
+      {/* Hero Section Dedicated Audio Element (Loops seamlessly while user is at hero) */}
+      <audio
+        ref={heroAudioRef}
+        src={heroAudioUrl || undefined}
+        loop
+        onPlay={() => {
+          if (heroAudioRef.current && !heroAudioRef.current.muted && isHeroActiveRef.current) {
+            setIsHeroPlaying(true);
+          }
+        }}
+        onPause={() => setIsHeroPlaying(false)}
         playsInline
         preload="auto"
         className="hidden"
@@ -342,11 +479,11 @@ export default function FloatingAudioPlayer() {
         <button
           onClick={toggleSound}
           data-audio-control="true"
-          aria-label={isMuted || !isPlaying ? 'Unmute music' : 'Mute music'}
+          aria-label={!isAnyAudioActive ? 'Unmute music' : 'Mute music'}
           className="relative group flex items-center justify-center w-16 h-16 transition-transform duration-300 hover:scale-105 active:scale-95 focus:outline-none cursor-pointer"
         >
           {/* Audio Waves Surrounding the Circle - Only shown when sound is actively unmuted & playing */}
-          {!isMuted && isPlaying ? (
+          {isAnyAudioActive ? (
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
               <svg 
                 viewBox="0 0 100 100" 
