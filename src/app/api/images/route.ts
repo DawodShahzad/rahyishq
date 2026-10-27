@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { FeedImage } from '@/types';
+import { syncDbToGitHub, isGitHubSyncConfigured } from '@/lib/githubSync';
 
 const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
 
@@ -17,14 +18,21 @@ function readDb() {
   return { streams: [], images: [], audioTracks: [] };
 }
 
-function writeDb(data: any) {
+async function writeDb(data: any, commitMessage = 'Update images database') {
+  let localWritten = false;
   try {
     fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
-    return true;
+    localWritten = true;
   } catch (err) {
-    console.error('Error writing to db.json:', err);
-    return false;
+    console.warn('[Local DB] Write skipped or read-only (normal in serverless/Vercel):', err);
   }
+
+  let githubResult: any = null;
+  if (isGitHubSyncConfigured()) {
+    githubResult = await syncDbToGitHub(data, commitMessage);
+  }
+
+  return { localWritten, githubResult };
 }
 
 export async function GET(req: Request) {
@@ -130,9 +138,14 @@ export async function POST(req: Request) {
     const db = readDb();
     if (!db.images) db.images = [];
     db.images.unshift(newImage);
-    writeDb(db);
+    const syncRes = await writeDb(db, `feat: add image [${newImage.referenceNumber || newImage.title}] via Mobile Admin`);
 
-    return NextResponse.json({ success: true, image: newImage }, { status: 201 });
+    return NextResponse.json({ 
+      success: true, 
+      image: newImage,
+      syncedToGitHub: Boolean(syncRes.githubResult?.success),
+      commitSha: syncRes.githubResult?.commitSha,
+    }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
@@ -180,8 +193,12 @@ export async function PUT(req: Request) {
       description: description !== undefined ? description.trim() : db.images[index].description,
     };
 
-    writeDb(db);
-    return NextResponse.json({ success: true, image: db.images[index] });
+    const syncRes = await writeDb(db, `feat: update image [${db.images[index].referenceNumber || id}] via Mobile Admin`);
+    return NextResponse.json({ 
+      success: true, 
+      image: db.images[index],
+      syncedToGitHub: Boolean(syncRes.githubResult?.success),
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
@@ -199,7 +216,12 @@ export async function DELETE(req: Request) {
     const db = readDb();
     if (db.images) {
       db.images = db.images.filter((img: FeedImage) => img.id !== id);
-      writeDb(db);
+      const syncRes = await writeDb(db, `feat: delete image [${id}] via Mobile Admin`);
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Image deleted successfully',
+        syncedToGitHub: Boolean(syncRes.githubResult?.success),
+      });
     }
 
     return NextResponse.json({ success: true, message: 'Image deleted successfully' });

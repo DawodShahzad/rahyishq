@@ -22,6 +22,8 @@ const defaultSettings = {
   footerArabicText: 'خدمتِ خلق • ذکرِ الٰہی • نشرِ قرآن مجید',
 };
 
+import { syncDbToGitHub, isGitHubSyncConfigured } from '@/lib/githubSync';
+
 function readDb() {
   try {
     if (fs.existsSync(dbPath)) {
@@ -34,14 +36,21 @@ function readDb() {
   return { settings: defaultSettings };
 }
 
-function writeDb(data: any) {
+async function writeDb(data: any, commitMessage = 'Update site settings') {
+  let localWritten = false;
   try {
     fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
-    return true;
+    localWritten = true;
   } catch (err) {
-    console.error('Error writing to db.json in settings API:', err);
-    return false;
+    console.warn('[Local DB] Settings write skipped or read-only (normal in serverless/Vercel):', err);
   }
+
+  let githubResult: any = null;
+  if (isGitHubSyncConfigured()) {
+    githubResult = await syncDbToGitHub(data, commitMessage);
+  }
+
+  return { localWritten, githubResult };
 }
 
 export async function GET() {
@@ -119,9 +128,13 @@ export async function POST(req: Request) {
       db.settings.footerArabicText = typeof footerArabicText === 'string' ? footerArabicText.trim() : '';
     }
 
-    writeDb(db);
+    const syncRes = await writeDb(db, 'feat: update appearance and branding settings via Mobile Admin');
 
-    return NextResponse.json({ success: true, settings: db.settings });
+    return NextResponse.json({ 
+      success: true, 
+      settings: db.settings,
+      syncedToGitHub: Boolean(syncRes.githubResult?.success),
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
