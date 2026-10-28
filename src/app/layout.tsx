@@ -4,6 +4,7 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import FloatingAudioPlayer from '@/components/FloatingAudioPlayer';
+import VisitorTracker from '@/components/VisitorTracker';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -76,6 +77,9 @@ export default function RootLayout({
         <main className="min-h-[85vh]">
           {children}
         </main>
+
+        {/* Visitor Analytics Tracker */}
+        <VisitorTracker />
 
         {/* Global Floating Background Audio Player */}
         <FloatingAudioPlayer />

@@ -32,7 +32,13 @@ import {
   X,
   GitBranch,
   Smartphone,
-  RefreshCw
+  RefreshCw,
+  Users,
+  BarChart3,
+  Activity,
+  Download,
+  TrendingUp,
+  Calendar
 } from 'lucide-react';
 import { FeedImage, StreamItem, AudioTrack, HeroImage } from '@/types';
 import { ENABLE_ADMIN_ACCESS, ADMIN_PASSCODE } from '@/config/adminAccess';
@@ -43,9 +49,23 @@ export default function AdminPage() {
   const [passcode, setPasscode] = useState<string>('');
   const [authError, setAuthError] = useState<string>('');
 
-  const [activeTab, setActiveTab] = useState<'images' | 'hero' | 'streams' | 'audio' | 'logo'>('images');
+  const [activeTab, setActiveTab] = useState<'images' | 'hero' | 'streams' | 'audio' | 'logo' | 'analytics'>('images');
   
   // Data states
+  const [analytics, setAnalytics] = useState<{
+    today: string;
+    todayVisitors: number;
+    todayPageViews: number;
+    yesterday: string;
+    yesterdayVisitors: number;
+    yesterdayPageViews: number;
+    totalVisitors: number;
+    totalPageViews: number;
+    totalImageViews: number;
+    totalImageDownloads: number;
+    history: Array<{ date: string; unique: number; total: number }>;
+  } | null>(null);
+  const [isRefreshingAnalytics, setIsRefreshingAnalytics] = useState(false);
   const [images, setImages] = useState<FeedImage[]>([]);
   const [streams, setStreams] = useState<StreamItem[]>([]);
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
@@ -115,13 +135,14 @@ export default function AdminPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [imagesRes, streamsRes, audioRes, heroRes, settingsRes, syncRes] = await Promise.all([
+      const [imagesRes, streamsRes, audioRes, heroRes, settingsRes, syncRes, analyticsRes] = await Promise.all([
         fetch('/api/images?admin=true'),
         fetch('/api/streams'),
         fetch('/api/audio'),
         fetch('/api/hero-images'),
         fetch('/api/settings'),
         fetch('/api/sync-status'),
+        fetch('/api/analytics'),
       ]);
 
       if (imagesRes.ok) setImages(await imagesRes.json());
@@ -129,6 +150,7 @@ export default function AdminPage() {
       if (audioRes.ok) setAudioTracks(await audioRes.json());
       if (heroRes.ok) setHeroImages(await heroRes.json());
       if (syncRes.ok) setSyncStatus(await syncRes.json());
+      if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
       if (settingsRes.ok) {
         const s = await settingsRes.json();
         if (s.platformName !== undefined) setPlatformNameInput(s.platformName);
@@ -151,6 +173,21 @@ export default function AdminPage() {
       console.error('Failed to load admin data:', e);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRefreshAnalytics = async () => {
+    setIsRefreshingAnalytics(true);
+    try {
+      const res = await fetch('/api/analytics');
+      if (res.ok) {
+        setAnalytics(await res.json());
+        showNotify('success', 'Daily visitor statistics refreshed.');
+      }
+    } catch {
+      showNotify('error', 'Failed to refresh statistics.');
+    } finally {
+      setIsRefreshingAnalytics(false);
     }
   };
 
@@ -619,28 +656,28 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 bg-white min-h-screen">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-10 bg-white min-h-screen">
       
-      {/* Admin Header with GitHub Shield Notice */}
-      <div className="pb-6 mb-8 border-b border-neutral-200">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Admin Header with Mobile-Ready Layout */}
+      <div className="pb-5 sm:pb-6 mb-6 sm:mb-8 border-b border-neutral-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="bg-neutral-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
                 Isolated Backend
               </span>
-              <span className="text-xs text-neutral-400">• Unlinked from Frontend UI</span>
+              <span className="text-[11px] sm:text-xs text-neutral-400">• Unlinked from Frontend UI</span>
             </div>
-            <h1 className="text-2xl font-bold text-neutral-900 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 tracking-tight">
               Admin Content & Stream Management
             </h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 self-stretch sm:self-auto">
             <Link
               href="/"
               target="_blank"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-medium rounded-full transition-colors"
+              className="flex-1 sm:flex-none justify-center inline-flex items-center gap-1.5 px-3.5 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-medium rounded-full transition-colors"
             >
               <Eye className="w-3.5 h-3.5" />
               <span>Preview Public Feed</span>
@@ -652,31 +689,31 @@ export default function AdminPage() {
                 sessionStorage.removeItem('darulehsan_admin_auth');
                 setIsAuthenticated(false);
               }}
-              className="px-3.5 py-1.5 border border-neutral-200 hover:bg-neutral-50 text-neutral-600 text-xs font-medium rounded-full transition-colors"
+              className="px-3.5 py-2 border border-neutral-200 hover:bg-neutral-50 text-neutral-600 text-xs font-medium rounded-full transition-colors cursor-pointer"
             >
               Lock & Logout
             </button>
           </div>
         </div>
 
-        {/* Live GitHub Auto-Sync & Publishing Status */}
+        {/* Live GitHub Auto-Sync & Mobile Publishing Status */}
         <div className="mt-4">
           {syncStatus?.isConfigured ? (
-            <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <div className="flex items-start sm:items-center gap-3">
-                <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-600 text-white flex-shrink-0 shadow-sm">
+                <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-600 text-white flex-shrink-0 shadow-xs">
                   <GitBranch className="w-4 h-4" />
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-white rounded-full animate-pulse" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-emerald-950">GitHub Live Auto-Sync Active</span>
-                    <span className="font-mono text-[11px] bg-white text-emerald-800 font-semibold px-2 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
+                    <span className="font-mono text-[10px] sm:text-[11px] bg-white text-emerald-800 font-semibold px-2 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
                       {syncStatus.owner}/{syncStatus.repo} ({syncStatus.branch})
                     </span>
                   </div>
                   <p className="text-emerald-700 text-[11px] mt-0.5">
-                    1-Click Mobile Upload is operational. All uploads from this phone or browser automatically commit to GitHub & trigger instant live site updates!
+                    1-Click Mobile Upload is operational. All uploads automatically commit to GitHub & trigger instant live site updates!
                   </p>
                 </div>
               </div>
@@ -688,7 +725,7 @@ export default function AdminPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-neutral-50 border border-neutral-200/90 rounded-2xl p-4 flex items-start gap-3 text-xs text-neutral-600">
+            <div className="bg-neutral-50 border border-neutral-200/90 rounded-2xl p-3.5 sm:p-4 flex items-start gap-3 text-xs text-neutral-600">
               <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
               <div className="leading-relaxed">
                 <div className="flex items-center gap-2">
@@ -698,7 +735,7 @@ export default function AdminPage() {
                   </span>
                 </div>
                 <p className="text-neutral-600 text-[11px] mt-0.5">
-                  This admin page is unlinked from the public site and secured with your passcode. On Vercel, with your GitHub token active, all mobile uploads auto-commit directly to GitHub!
+                  Secured with passcode. Silent mode active (no music playback on admin).
                 </p>
               </div>
             </div>
@@ -709,89 +746,212 @@ export default function AdminPage() {
       {/* Notifications */}
       {notification && (
         <div
-          className={`mb-6 p-4 rounded-2xl text-xs font-medium flex items-center gap-2 ${
+          className={`mb-6 p-3.5 sm:p-4 rounded-2xl text-xs font-medium flex items-center gap-2 ${
             notification.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
               : 'bg-red-50 text-red-800 border border-red-200'
           }`}
         >
           {notification.type === 'success' ? (
-            <CheckCircle className="w-4 h-4 text-emerald-600" />
+            <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
           ) : (
-            <AlertCircle className="w-4 h-4 text-red-600" />
+            <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
           )}
           <span>{notification.message}</span>
         </div>
       )}
 
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-neutral-200 mb-8 overflow-x-auto">
+      {/* DAILY WEBSITE VISITORS & TRAFFIC KPI HERO STRIP */}
+      <div className="mb-6 sm:mb-8 bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm border border-neutral-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-neutral-800/80">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                  Daily Website Visitors Quantity
+                </h2>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Today
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-400">
+                Audience traffic, daily unique visitors, and image interaction counts.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            <button
+              onClick={handleRefreshAnalytics}
+              disabled={isRefreshingAnalytics}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800/90 hover:bg-neutral-700 active:scale-95 text-neutral-300 text-xs font-medium rounded-full transition-all border border-neutral-700/60 cursor-pointer disabled:opacity-50"
+              title="Refresh Visitor Data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingAnalytics ? 'animate-spin text-emerald-400' : ''}`} />
+              <span>Refresh</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-full transition-all cursor-pointer ${
+                activeTab === 'analytics'
+                  ? 'bg-white text-neutral-950 font-semibold shadow-xs'
+                  : 'bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 border border-neutral-700/60'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Daily Breakdown</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Metric KPI Cards - Responsive: 2 cols on mobile, 4 cols on desktop */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          {/* Card 1: Today's Visitors Quantity */}
+          <div className="bg-neutral-900/80 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-neutral-800 hover:border-neutral-700/80 transition-colors">
+            <div className="flex items-center justify-between text-neutral-400 text-[11px] font-medium mb-1">
+              <span>Today&apos;s Visitors</span>
+              <Users className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">
+              {(analytics?.todayVisitors ?? 0).toLocaleString()}
+            </div>
+            <div className="text-[10px] text-neutral-400 mt-1 flex items-center gap-1 truncate">
+              <span className="text-emerald-400 font-semibold font-mono">
+                {analytics?.yesterdayVisitors !== undefined ? `${analytics.yesterdayVisitors} yesterday` : 'Unique visits'}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: Today's Total Page Views */}
+          <div className="bg-neutral-900/80 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-neutral-800 hover:border-neutral-700/80 transition-colors">
+            <div className="flex items-center justify-between text-neutral-400 text-[11px] font-medium mb-1">
+              <span>Today&apos;s Pageviews</span>
+              <Activity className="w-3.5 h-3.5 text-cyan-400" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">
+              {(analytics?.todayPageViews ?? 0).toLocaleString()}
+            </div>
+            <div className="text-[10px] text-neutral-400 mt-1 truncate">
+              Total hits today
+            </div>
+          </div>
+
+          {/* Card 3: Total All-Time Visitors */}
+          <div className="bg-neutral-900/80 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-neutral-800 hover:border-neutral-700/80 transition-colors">
+            <div className="flex items-center justify-between text-neutral-400 text-[11px] font-medium mb-1">
+              <span>All-Time Visitors</span>
+              <BarChart3 className="w-3.5 h-3.5 text-purple-400" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">
+              {(analytics?.totalVisitors ?? 0).toLocaleString()}
+            </div>
+            <div className="text-[10px] text-neutral-400 mt-1 truncate">
+              Unique lifetime visitors
+            </div>
+          </div>
+
+          {/* Card 4: Total Image Views & Downloads */}
+          <div className="bg-neutral-900/80 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-neutral-800 hover:border-neutral-700/80 transition-colors">
+            <div className="flex items-center justify-between text-neutral-400 text-[11px] font-medium mb-1">
+              <span>Views / Downloads</span>
+              <Download className="w-3.5 h-3.5 text-amber-400" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight flex items-baseline gap-1.5">
+              <span>{(analytics?.totalImageViews ?? 0).toLocaleString()}</span>
+              <span className="text-xs text-neutral-500 font-normal">/</span>
+              <span className="text-amber-400 text-lg sm:text-xl">{(analytics?.totalImageDownloads ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="text-[10px] text-neutral-400 mt-1 truncate">
+              Total public engagement
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* NAVIGATION TABS - MOBILE-FIRST SCROLLABLE PILL BAR */}
+      <div className="flex items-center gap-1.5 p-1.5 bg-neutral-100 rounded-2xl overflow-x-auto border border-neutral-200/80 mb-6 sm:mb-8 text-xs scrollbar-none">
         <button
           onClick={() => setActiveTab('images')}
-          className={`flex items-center gap-2 px-6 py-3 font-semibold text-xs border-b-2 whitespace-nowrap transition-colors ${
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
             activeTab === 'images'
-              ? 'border-neutral-900 text-neutral-900'
-              : 'border-transparent text-neutral-400 hover:text-neutral-700'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
           }`}
         >
-          <ImageIcon className="w-4 h-4" />
-          <span>Images & Feed Posts ({images.length})</span>
+          <ImageIcon className="w-3.5 h-3.5" />
+          <span>Images ({images.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'analytics'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Daily Visitors ({analytics?.todayVisitors ?? 0})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('hero')}
-          className={`flex items-center gap-2 px-6 py-3 font-semibold text-xs border-b-2 whitespace-nowrap transition-colors ${
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
             activeTab === 'hero'
-              ? 'border-neutral-900 text-neutral-900'
-              : 'border-transparent text-neutral-400 hover:text-neutral-700'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
           }`}
         >
-          <LayoutTemplate className="w-4 h-4" />
-          <span>Hero Images ({heroImages.length})</span>
+          <LayoutTemplate className="w-3.5 h-3.5" />
+          <span>Hero ({heroImages.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('logo')}
-          className={`flex items-center gap-2 px-6 py-3 font-semibold text-xs border-b-2 whitespace-nowrap transition-colors ${
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
             activeTab === 'logo'
-              ? 'border-neutral-900 text-neutral-900'
-              : 'border-transparent text-neutral-400 hover:text-neutral-700'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
           }`}
         >
-          <Palette className="w-4 h-4" />
-          <span>Appearance & Branding</span>
+          <Palette className="w-3.5 h-3.5" />
+          <span>Appearance</span>
         </button>
 
         <button
           onClick={() => setActiveTab('streams')}
-          className={`flex items-center gap-2 px-6 py-3 font-semibold text-xs border-b-2 whitespace-nowrap transition-colors ${
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
             activeTab === 'streams'
-              ? 'border-neutral-900 text-neutral-900'
-              : 'border-transparent text-neutral-400 hover:text-neutral-700'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
           }`}
         >
-          <Layers className="w-4 h-4" />
+          <Layers className="w-3.5 h-3.5" />
           <span>Streams ({streams.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('audio')}
-          className={`flex items-center gap-2 px-6 py-3 font-semibold text-xs border-b-2 whitespace-nowrap transition-colors ${
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
             activeTab === 'audio'
-              ? 'border-neutral-900 text-neutral-900'
-              : 'border-transparent text-neutral-400 hover:text-neutral-700'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
           }`}
         >
-          <Volume2 className="w-4 h-4" />
-          <span>Background Audio Music ({audioTracks.length})</span>
+          <Volume2 className="w-3.5 h-3.5" />
+          <span>Music Audio ({audioTracks.length})</span>
         </button>
       </div>
 
       {/* TAB 1: IMAGES MANAGEMENT & ADD FORM */}
       {activeTab === 'images' && (
-        <div className="space-y-12">
+        <div className="space-y-8 sm:space-y-12">
           {/* Add Image Form */}
-          <div className="bg-neutral-50/60 border border-neutral-200 rounded-3xl p-6 sm:p-8">
+          <div className="bg-neutral-50/60 border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8">
             <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
               <Plus className="w-4 h-4" />
               <span>Add New Image to Stream</span>
@@ -989,7 +1149,7 @@ export default function AdminPage() {
                 <button
                   type="submit"
                   disabled={isSubmittingImage}
-                  className={`px-6 py-2.5 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm ${
+                  className={`w-full sm:w-auto px-6 py-3 sm:py-2.5 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center ${
                     dupWarningCount > 0 && dupWarningUrl === imageUrl.trim()
                       ? dupWarningCount >= 3
                         ? 'bg-amber-600 hover:bg-amber-700 ring-2 ring-amber-400'
@@ -1012,15 +1172,21 @@ export default function AdminPage() {
           {/* Existing Images Table / Registry */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-neutral-900">
-                Uploaded Images Registry ({images.length})
-              </h2>
+              <div>
+                <h2 className="text-base font-bold text-neutral-900">
+                  Uploaded Images Registry ({images.length})
+                </h2>
+                <p className="text-[11px] text-neutral-500">
+                  Track public views, downloads, and confidential archival notes.
+                </p>
+              </div>
               <span className="text-xs text-neutral-400 font-mono">
                 Real-time synchronized
               </span>
             </div>
 
-            <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-xs">
+            {/* Desktop Table View (hidden on mobile) */}
+            <div className="hidden md:block bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -1028,6 +1194,8 @@ export default function AdminPage() {
                       <th className="py-3 px-4">Preview</th>
                       <th className="py-3 px-4">Ref #</th>
                       <th className="py-3 px-4">Title & Description</th>
+                      <th className="py-3 px-3 text-center">Views</th>
+                      <th className="py-3 px-3 text-center">Downloads</th>
                       <th className="py-3 px-4">Admin Notes (Confidential)</th>
                       <th className="py-3 px-4">Streams & Tags</th>
                       <th className="py-3 px-4 text-right">Actions</th>
@@ -1061,6 +1229,18 @@ export default function AdminPage() {
                             </p>
                           )}
                         </td>
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-neutral-700 bg-neutral-100 px-2.5 py-0.5 rounded-full">
+                            <Eye className="w-3 h-3 text-neutral-400" />
+                            {image.views || 0}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-neutral-700 bg-neutral-100 px-2.5 py-0.5 rounded-full">
+                            <Download className="w-3 h-3 text-neutral-400" />
+                            {image.downloads || 0}
+                          </span>
+                        </td>
                         <td className="py-3 px-4 max-w-xs">
                           {image.adminNotes ? (
                             <div className="p-1.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-md text-[11px]">
@@ -1084,7 +1264,7 @@ export default function AdminPage() {
                           <button
                             onClick={() => handleDeleteImage(image.id)}
                             title="Delete image"
-                            className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1094,6 +1274,249 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Mobile Card-Based Registry View (optimized for phones) */}
+            <div className="md:hidden space-y-3">
+              {images.map((image) => (
+                <div key={image.id} className="bg-white border border-neutral-200 rounded-2xl p-3.5 shadow-2xs space-y-3">
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={image.url}
+                      alt={image.title}
+                      className="w-16 h-16 rounded-xl object-cover bg-neutral-100 border border-neutral-200 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="font-mono text-[11px] font-bold text-neutral-800 bg-neutral-100 px-2 py-0.5 rounded-md">
+                          {image.referenceNumber || 'No Ref'}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                          <span className="inline-flex items-center gap-1 text-neutral-700 bg-neutral-100 px-1.5 py-0.5 rounded-md">
+                            <Eye className="w-3 h-3 text-neutral-400" />
+                            {image.views || 0}
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-neutral-700 bg-neutral-100 px-1.5 py-0.5 rounded-md">
+                            <Download className="w-3 h-3 text-neutral-400" />
+                            {image.downloads || 0}
+                          </span>
+                        </div>
+                      </div>
+
+                      <h3 className="font-semibold text-xs text-neutral-900 truncate">
+                        {image.title}
+                      </h3>
+
+                      {image.description && (
+                        <p className="text-[11px] text-neutral-500 line-clamp-1 mt-0.5">
+                          {image.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Confidential Admin Note */}
+                  {image.adminNotes && (
+                    <div className="p-2 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-[11px]">
+                      <span className="font-semibold block text-[10px] text-amber-800">🔒 Confidential Admin Note:</span>
+                      {image.adminNotes}
+                    </div>
+                  )}
+
+                  {/* Tags & Action Bar */}
+                  <div className="flex items-center justify-between pt-2 border-t border-neutral-100 gap-2">
+                    <div className="flex flex-wrap gap-1 max-w-[65%]">
+                      {image.tags?.slice(0, 3).map((t, i) => (
+                        <span key={i} className="text-[10px] bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-600">
+                          #{t}
+                        </span>
+                      ))}
+                      {(image.tags?.length || 0) > 3 && (
+                        <span className="text-[10px] text-neutral-400">+{image.tags.length - 3}</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Link
+                        href={`/image/${image.id}`}
+                        target="_blank"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-[11px] font-medium rounded-lg transition-colors"
+                      >
+                        <span>View</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteImage(image.id)}
+                        className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        title="Delete image"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: DAILY WEBSITE VISITORS & TRAFFIC BREAKDOWN */}
+      {activeTab === 'analytics' && (
+        <div className="space-y-6 sm:space-y-8">
+          <div className="bg-white border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-neutral-200">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Live Visitor Logs
+                  </span>
+                </div>
+                <h2 className="text-lg sm:text-xl font-bold text-neutral-900 tracking-tight">
+                  Daily Website Visitors Quantity & Breakdown
+                </h2>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Detailed day-by-day records of unique visitors and total page impressions across the site.
+                </p>
+              </div>
+
+              <button
+                onClick={handleRefreshAnalytics}
+                disabled={isRefreshingAnalytics}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingAnalytics ? 'animate-spin' : ''}`} />
+                <span>Refresh Logs</span>
+              </button>
+            </div>
+
+            {/* Comparative Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-8">
+              <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80">
+                <div className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider mb-1">
+                  Today ({analytics?.today || 'Current Day'})
+                </div>
+                <div className="text-2xl sm:text-3xl font-extrabold text-emerald-950 font-mono">
+                  {analytics?.todayVisitors ?? 0}
+                </div>
+                <div className="text-xs text-emerald-700 mt-1">
+                  Unique visitors ({analytics?.todayPageViews ?? 0} page hits)
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200">
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider mb-1">
+                  Yesterday ({analytics?.yesterday || 'Previous Day'})
+                </div>
+                <div className="text-2xl sm:text-3xl font-extrabold text-neutral-900 font-mono">
+                  {analytics?.yesterdayVisitors ?? 0}
+                </div>
+                <div className="text-xs text-neutral-500 mt-1">
+                  Unique visitors ({analytics?.yesterdayPageViews ?? 0} page hits)
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200/80">
+                <div className="text-[11px] font-semibold text-indigo-800 uppercase tracking-wider mb-1">
+                  All-Time Total
+                </div>
+                <div className="text-2xl sm:text-3xl font-extrabold text-indigo-950 font-mono">
+                  {analytics?.totalVisitors ?? 0}
+                </div>
+                <div className="text-xs text-indigo-700 mt-1">
+                  Total unique visitors ({analytics?.totalPageViews ?? 0} total hits)
+                </div>
+              </div>
+            </div>
+
+            {/* Daily History Table */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold text-neutral-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-neutral-500" />
+                  <span>Day-by-Day Visitor History</span>
+                </h3>
+                <span className="text-[11px] text-neutral-400 font-mono">
+                  Showing last {analytics?.history?.length || 0} recorded days
+                </span>
+              </div>
+
+              {(!analytics?.history || analytics.history.length === 0) ? (
+                <div className="text-center py-10 bg-neutral-50 rounded-2xl border border-neutral-200">
+                  <Users className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+                  <p className="text-xs font-medium text-neutral-600">No daily records logged yet.</p>
+                  <p className="text-[11px] text-neutral-400 mt-0.5">Visits to the public website feed will automatically record here.</p>
+                </div>
+              ) : (
+                <div className="border border-neutral-200 rounded-2xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-neutral-50 border-b border-neutral-200 text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+                          <th className="py-3 px-4">Date</th>
+                          <th className="py-3 px-4">Unique Visitors</th>
+                          <th className="py-3 px-4">Page Hits / Views</th>
+                          <th className="py-3 px-4 text-right">Traffic Volume</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 text-xs">
+                        {analytics.history.map((record) => {
+                          const isToday = record.date === analytics.today;
+                          const isYesterday = record.date === analytics.yesterday;
+                          const maxUnique = Math.max(...analytics.history.map(h => h.unique), 1);
+                          const pct = Math.min(100, Math.max(8, Math.round((record.unique / maxUnique) * 100)));
+
+                          return (
+                            <tr key={record.date} className={`hover:bg-neutral-50/60 transition-colors ${isToday ? 'bg-emerald-50/30' : ''}`}>
+                              <td className="py-3 px-4 font-mono font-medium text-neutral-800">
+                                <div className="flex items-center gap-2">
+                                  <span>{record.date}</span>
+                                  {isToday && (
+                                    <span className="text-[10px] font-sans font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded-md">
+                                      Today
+                                    </span>
+                                  )}
+                                  {isYesterday && (
+                                    <span className="text-[10px] font-sans font-medium bg-neutral-100 text-neutral-600 px-1.5 py-0.2 rounded-md">
+                                      Yesterday
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 font-mono font-bold text-neutral-900">
+                                <span className="inline-flex items-center gap-1.5 bg-neutral-100 px-2 py-0.5 rounded-md text-xs">
+                                  <Users className="w-3 h-3 text-neutral-500" />
+                                  {record.unique.toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-mono text-neutral-600">
+                                <span className="inline-flex items-center gap-1.5 bg-neutral-50 px-2 py-0.5 rounded-md text-xs">
+                                  <Activity className="w-3 h-3 text-cyan-600" />
+                                  {record.total.toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="inline-flex items-center gap-2 w-28 sm:w-36 justify-end">
+                                  <div className="w-full bg-neutral-100 h-2 rounded-full overflow-hidden">
+                                    <div
+                                      className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[11px] font-mono text-neutral-400 w-8 text-right shrink-0">
+                                    {pct}%
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1501,8 +1924,8 @@ export default function AdminPage() {
 
       {/* TAB 3: BRAND LOGO & APPEARANCE MANAGEMENT */}
       {activeTab === 'logo' && (
-        <div className="space-y-10 max-w-3xl">
-          <div className="bg-neutral-50/60 border border-neutral-200 rounded-3xl p-6 sm:p-8">
+        <div className="space-y-8 sm:space-y-10 max-w-3xl">
+          <div className="bg-neutral-50/60 border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8">
             <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
               <Palette className="w-4 h-4 text-neutral-900" />
               <span>Website Appearance, Theme & Branding</span>
@@ -2096,11 +2519,11 @@ export default function AdminPage() {
               </div>
 
               {/* SAVE BUTTONS */}
-              <div className="flex items-center gap-3 pt-6 border-t border-neutral-200">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-6 border-t border-neutral-200">
                 <button
                   type="submit"
                   disabled={isSavingLogo}
-                  className="px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm"
+                  className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center"
                 >
                   {isSavingLogo ? 'Saving Settings...' : 'Save All Appearance & Theme Settings'}
                 </button>
@@ -2110,7 +2533,7 @@ export default function AdminPage() {
                     type="button"
                     onClick={handleClearLogo}
                     disabled={isSavingLogo}
-                    className="px-4 py-2.5 border border-neutral-200 hover:bg-neutral-100 text-neutral-700 text-xs font-semibold rounded-xl transition-all"
+                    className="w-full sm:w-auto px-4 py-3 sm:py-2.5 border border-neutral-200 hover:bg-neutral-100 text-neutral-700 text-xs font-semibold rounded-xl transition-all cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center"
                   >
                     Clear Brand Logo
                   </button>
@@ -2123,8 +2546,8 @@ export default function AdminPage() {
 
       {/* TAB 4: STREAMS MANAGEMENT */}
       {activeTab === 'streams' && (
-        <div className="space-y-10">
-          <div className="bg-neutral-50/60 border border-neutral-200 rounded-3xl p-6 sm:p-8 max-w-2xl">
+        <div className="space-y-8 sm:space-y-10">
+          <div className="bg-neutral-50/60 border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-2xl">
             <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
               <Layers className="w-4 h-4" />
               <span>Create New Stream</span>
@@ -2164,7 +2587,7 @@ export default function AdminPage() {
               <button
                 type="submit"
                 disabled={isSubmittingStream}
-                className="px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm"
+                className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center"
               >
                 {isSubmittingStream ? 'Creating Stream...' : 'Create Stream'}
               </button>
@@ -2209,7 +2632,7 @@ export default function AdminPage() {
                       </span>
                       <button
                         onClick={() => handleDeleteStream(stream.id)}
-                        className="text-neutral-400 hover:text-red-600 p-1 rounded-md transition-colors"
+                        className="text-neutral-400 hover:text-red-600 p-1 rounded-md transition-colors cursor-pointer"
                         title="Delete stream"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -2225,8 +2648,8 @@ export default function AdminPage() {
 
       {/* TAB 5: AUDIO MUSIC MANAGEMENT */}
       {activeTab === 'audio' && (
-        <div className="space-y-10">
-          <div className="bg-neutral-50/60 border border-neutral-200 rounded-3xl p-6 sm:p-8 max-w-2xl">
+        <div className="space-y-8 sm:space-y-10">
+          <div className="bg-neutral-50/60 border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-2xl">
             <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
               <Volume2 className="w-4 h-4" />
               <span>Add Background Audio Music</span>
@@ -2283,7 +2706,7 @@ export default function AdminPage() {
               <button
                 type="submit"
                 disabled={isSubmittingAudio}
-                className="px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm"
+                className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center"
               >
                 {isSubmittingAudio ? 'Adding Track...' : 'Add to Background Music Playlist'}
               </button>

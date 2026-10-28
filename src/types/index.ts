@@ -44,6 +44,20 @@ export interface FeedImage {
   description: string;     // Image description
   dateAdded: string;
   aspectRatio?: 'square' | 'portrait' | 'landscape';
+  views?: number;          // Public view count
+  downloads?: number;      // Public download count
+}
+
+export interface DailyVisitorRecord {
+  date: string;
+  unique: number;
+  total: number;
+}
+
+export interface AnalyticsData {
+  dailyVisitors: Record<string, { unique: number; total: number }>;
+  totalVisitors: number;
+  totalPageViews: number;
 }
 
 export interface AudioTrack {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { AudioTrack } from '@/types';
 
 const STORAGE_KEY = 'site_audio_unmuted';
@@ -33,6 +34,9 @@ const DEFAULT_TRACKS: AudioTrack[] = [
 ];
 
 export default function FloatingAudioPlayer() {
+  const pathname = usePathname();
+  const isAdminPage = Boolean(pathname?.startsWith('/admin'));
+
   const [tracks, setTracks] = useState<AudioTrack[]>(DEFAULT_TRACKS);
   const [shuffledIndices, setShuffledIndices] = useState<number[]>([0, 1, 2]);
   const [currentIndexOrder, setCurrentIndexOrder] = useState<number>(0);
@@ -50,6 +54,15 @@ export default function FloatingAudioPlayer() {
   const isMutedRef = useRef<boolean>(true);
   const isHeroActiveRef = useRef<boolean>(false);
   const currentTrackIdRef = useRef<string | null>(null);
+  const wasPlayingBeforeHideRef = useRef<{
+    playlist: boolean;
+    hero: boolean;
+    unmuted: boolean;
+  }>({
+    playlist: false,
+    hero: false,
+    unmuted: false,
+  });
 
   // Keep isMutedRef in sync so event listeners always have latest value
   useEffect(() => {
@@ -61,8 +74,77 @@ export default function FloatingAudioPlayer() {
     isHeroActiveRef.current = isHeroActive;
   }, [isHeroActive]);
 
+  // Ensure music NEVER plays when user is on the admin page
+  useEffect(() => {
+    if (isAdminPage) {
+      if (audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+      }
+      if (heroAudioRef.current && !heroAudioRef.current.paused) {
+        heroAudioRef.current.pause();
+      }
+      setIsPlaying(false);
+      setIsHeroPlaying(false);
+    }
+  }, [isAdminPage]);
+
+  // Auto-pause music when the user switches away (tab or window hidden) and resume on return
+  useEffect(() => {
+    if (isAdminPage) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Page is hidden from view: pause music
+        const isPlPlaying = Boolean(audioRef.current && !audioRef.current.paused);
+        const isHrPlaying = Boolean(heroAudioRef.current && !heroAudioRef.current.paused);
+        const isCurrentlyUnmuted = !isMutedRef.current;
+
+        wasPlayingBeforeHideRef.current = {
+          playlist: isPlPlaying,
+          hero: isHrPlaying,
+          unmuted: isCurrentlyUnmuted,
+        };
+
+        if (audioRef.current && !audioRef.current.paused) {
+          audioRef.current.pause();
+        }
+        if (heroAudioRef.current && !heroAudioRef.current.paused) {
+          heroAudioRef.current.pause();
+        }
+      } else {
+        // Page is visible again on screen: resume playback if it was playing before
+        const { playlist, hero, unmuted } = wasPlayingBeforeHideRef.current;
+
+        if (hero && isHeroActiveRef.current && heroAudioRef.current) {
+          const heroAudio = heroAudioRef.current;
+          heroAudio.muted = !unmuted;
+          heroAudio.play()
+            .then(() => {
+              if (unmuted) setIsHeroPlaying(true);
+            })
+            .catch(() => {});
+        } else if (playlist && !isHeroActiveRef.current && audioRef.current) {
+          const audio = audioRef.current;
+          audio.muted = !unmuted;
+          audio.play()
+            .then(() => {
+              if (unmuted) setIsPlaying(true);
+            })
+            .catch(() => {});
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAdminPage]);
+
   // Read saved audio preference from localStorage on initial mount
   useEffect(() => {
+    if (isAdminPage) return;
+
     let savedPref: string | null = null;
     try {
       savedPref = localStorage.getItem(STORAGE_KEY);
@@ -91,18 +173,15 @@ export default function FloatingAudioPlayer() {
             setIsMuted(false);
           })
           .catch(() => {
-            // If browser blocks unmuted playback on reload before user tap,
-            // play muted in background so buffer is hot and first tap produces sound
             audio.muted = true;
             audio.play().catch(() => {});
           });
       } else {
-        // First visit or user chose mute: start playing muted in background
         audio.muted = true;
         audio.play().catch(() => {});
       }
     }
-  }, []);
+  }, [isAdminPage]);
 
   // Fetch playlist & appearance settings (music icon & wave color)
   const loadData = useCallback(async () => {
@@ -273,8 +352,8 @@ export default function FloatingAudioPlayer() {
       audio.muted = !shouldBeUnmuted;
       audio.volume = 1.0;
 
-      // Only play playlist if hero audio is NOT currently active
-      if (!isHeroActiveRef.current) {
+      // Only play playlist if hero audio is NOT currently active and NOT on admin
+      if (!isHeroActiveRef.current && !isAdminPage) {
         audio.play()
           .then(() => {
             if (shouldBeUnmuted) {
@@ -290,14 +369,15 @@ export default function FloatingAudioPlayer() {
           });
       }
     }
-  }, [currentTrack]);
+  }, [currentTrack, isAdminPage]);
 
   // The first tap anywhere on the screen shifts the muted music to unmuted and stores in localStorage
   useEffect(() => {
+    if (isAdminPage) return;
     let unmutedThisSession = false;
 
     const handleFirstGesture = (e: Event) => {
-      if (unmutedThisSession) return;
+      if (isAdminPage || unmutedThisSession) return;
 
       const target = e.target as HTMLElement | null;
       if (target?.closest('[data-audio-control="true"]')) {
@@ -439,6 +519,10 @@ export default function FloatingAudioPlayer() {
   });
 
   const isAnyAudioActive = !isMuted && (isHeroActive ? isHeroPlaying : isPlaying);
+
+  if (isAdminPage) {
+    return null;
+  }
 
   return (
     <>

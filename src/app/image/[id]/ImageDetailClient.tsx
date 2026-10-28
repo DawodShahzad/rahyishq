@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Copy, Check, Share2, Download } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Share2, Download, Eye } from 'lucide-react';
 import { FeedImage, StreamItem } from '@/types';
 
 interface ImageDetailClientProps {
@@ -15,12 +15,48 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
+  const [views, setViews] = useState<number>(image.views || 0);
+  const [downloads, setDownloads] = useState<number>(image.downloads || 0);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setShareUrl(window.location.href);
+
+      // Track view: increment view once per session, or fetch latest count
+      const sessionKey = `darulehsan_viewed_${image.id}`;
+      let alreadyViewed = false;
+      try {
+        alreadyViewed = Boolean(sessionStorage.getItem(sessionKey));
+      } catch {}
+
+      if (!alreadyViewed) {
+        try {
+          sessionStorage.setItem(sessionKey, 'true');
+        } catch {}
+
+        fetch('/api/images/stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: image.id, action: 'view' }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (typeof data.views === 'number') setViews(data.views);
+            if (typeof data.downloads === 'number') setDownloads(data.downloads);
+          })
+          .catch(() => {});
+      } else {
+        // Fetch current stats without incrementing
+        fetch(`/api/images/stats?id=${encodeURIComponent(image.id)}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (typeof data.views === 'number') setViews(data.views);
+            if (typeof data.downloads === 'number') setDownloads(data.downloads);
+          })
+          .catch(() => {});
+      }
     }
-  }, []);
+  }, [image.id]);
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
@@ -33,6 +69,21 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
   const handleDownload = async () => {
     try {
       setDownloading(true);
+
+      // Record download stat immediately
+      fetch('/api/images/stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: image.id, action: 'download' }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (typeof data.downloads === 'number') setDownloads(data.downloads);
+        })
+        .catch(() => {
+          setDownloads((prev) => prev + 1);
+        });
+
       const res = await fetch(image.url);
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -100,8 +151,11 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-medium rounded-full transition-colors cursor-pointer disabled:opacity-50"
               title="Download Image"
             >
-              <Download className={`w-3.5 h-3.5 ${downloading ? 'animate-bounce' : ''}`} />
+              <Download className={`w-3.5 h-3.5 ${downloading ? 'animate-bounce text-indigo-600' : ''}`} />
               <span>{downloading ? 'Saving...' : 'Download'}</span>
+              <span className="ml-0.5 px-1.5 py-0.2 bg-white/90 text-[11px] font-mono text-neutral-600 rounded-full border border-neutral-200/60">
+                {downloads}
+              </span>
             </button>
 
             <button
@@ -140,17 +194,31 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
           />
         </div>
 
-        {/* Essential Content: Reference number & Date of Archival, Title, Description */}
+        {/* Essential Content: Reference number & Date of Archival, Views, Downloads, Title, Description */}
         <div className="space-y-4">
-          {/* Reference Number & Date of Archival */}
-          <div className="flex items-center gap-4 text-xs text-neutral-500 font-mono">
+          {/* Reference Number & Date of Archival & View/Download Counts */}
+          <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-2 text-xs text-neutral-500 font-mono">
             {image.referenceNumber && (
-              <span>Ref: {image.referenceNumber}</span>
+              <span className="font-semibold text-neutral-800">Ref: {image.referenceNumber}</span>
             )}
             {image.referenceNumber && image.dateAdded && <span>•</span>}
             {image.dateAdded && (
               <span>Date: {image.dateAdded}</span>
             )}
+            
+            <span className="hidden sm:inline text-neutral-300">•</span>
+
+            {/* Views Count Pill */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-neutral-100/90 text-neutral-700 rounded-full font-sans text-[11px] font-medium border border-neutral-200/50">
+              <Eye className="w-3.5 h-3.5 text-neutral-500" />
+              <span>{views.toLocaleString()} {views === 1 ? 'view' : 'views'}</span>
+            </div>
+
+            {/* Downloads Count Pill */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-neutral-100/90 text-neutral-700 rounded-full font-sans text-[11px] font-medium border border-neutral-200/50">
+              <Download className="w-3.5 h-3.5 text-neutral-500" />
+              <span>{downloads.toLocaleString()} {downloads === 1 ? 'download' : 'downloads'}</span>
+            </div>
           </div>
 
           {/* Title */}
