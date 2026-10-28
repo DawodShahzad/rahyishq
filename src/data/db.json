@@ -1,5 +1,13 @@
 {
-  "streams": [],
+  "streams": [
+    {
+      "id": "stream-1793179856453-ivpx",
+      "title": "جنگل کی آواز",
+      "slug": "stream-1793179856453",
+      "description": "",
+      "createdAt": "2026-10-28"
+    }
+  ],
   "images": [
     {
       "id": "img-1792894231755-m37c",
