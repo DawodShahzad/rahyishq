@@ -15,6 +15,7 @@
 import fs from 'fs';
 import path from 'path';
 import { FeedImage } from '@/types';
+import { getServerDb } from '@/lib/serverDb';
 
 const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
 
@@ -67,14 +68,8 @@ async function callRedisCommand(command: (string | number)[]) {
 }
 
 function readLocalDb() {
-  try {
-    if (fs.existsSync(dbPath)) {
-      return JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-    }
-  } catch (err) {
-    console.error('Error reading local db.json:', err);
-  }
-  return { images: [], analytics: { dailyVisitors: {}, totalVisitors: 0, totalPageViews: 0 } };
+  const db = getServerDb();
+  return db || { images: [], analytics: { dailyVisitors: {}, totalVisitors: 0, totalPageViews: 0 } };
 }
 
 function writeLocalDb(data: any) {

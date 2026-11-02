@@ -1,31 +1,22 @@
 import type { Metadata } from 'next';
-import fs from 'fs';
-import path from 'path';
 import { notFound } from 'next/navigation';
 import ImageDetailClient from './ImageDetailClient';
 import { FeedImage, StreamItem } from '@/types';
+import { getServerDb } from '@/lib/serverDb';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 function getDbData() {
-  const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
-  try {
-    if (fs.existsSync(dbPath)) {
-      const data = fs.readFileSync(dbPath, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (err) {
-    console.error('Error reading db.json in image page:', err);
-  }
-  return { streams: [], images: [], audioTracks: [], settings: {} };
+  return getServerDb();
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { id } = await params;
+  const rawId = (await params).id;
+  const id = decodeURIComponent(rawId);
   const db = getDbData();
-  const image: FeedImage | undefined = db.images?.find((img: FeedImage) => img.id === id);
+  const image: FeedImage | undefined = db.images?.find((img: FeedImage) => img.id === id || img.id === rawId);
   const platformName = db.settings?.platformName?.trim() || 'Rahy Ishq';
 
   if (!image) {
@@ -69,9 +60,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function ImagePage({ params }: PageProps) {
-  const { id } = await params;
+  const rawId = (await params).id;
+  const id = decodeURIComponent(rawId);
   const db = getDbData();
-  const image: FeedImage | undefined = db.images?.find((img: FeedImage) => img.id === id);
+  const image: FeedImage | undefined = db.images?.find((img: FeedImage) => img.id === id || img.id === rawId);
   const platformName = db.settings?.platformName?.trim() || 'Rahy Ishq';
 
   if (!image) {

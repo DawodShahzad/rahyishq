@@ -19,19 +19,11 @@ const nastaliq = Noto_Nastaliq_Urdu({
   variable: '--font-nastaliq',
 });
 
-import fs from 'fs';
-import path from 'path';
+import { getServerDb } from '@/lib/serverDb';
 
 function getPlatformSettings() {
-  const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
-  try {
-    if (fs.existsSync(dbPath)) {
-      const data = fs.readFileSync(dbPath, 'utf8');
-      const parsed = JSON.parse(data);
-      return parsed.settings?.platformName?.trim() || 'Rahy Ishq';
-    }
-  } catch {}
-  return 'Rahy Ishq';
+  const db = getServerDb();
+  return db?.settings?.platformName?.trim() || 'Rahy Ishq';
 }
 
 export async function generateMetadata(): Promise<Metadata> {
