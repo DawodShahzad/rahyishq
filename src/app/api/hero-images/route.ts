@@ -3,19 +3,12 @@ import fs from 'fs';
 import path from 'path';
 import { HeroImage } from '@/types';
 import { syncDbToGitHub, isGitHubSyncConfigured } from '@/lib/githubSync';
+import { getServerDb } from '@/lib/serverDb';
 
 const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
 
 function readDb() {
-  try {
-    if (fs.existsSync(dbPath)) {
-      const data = fs.readFileSync(dbPath, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (err) {
-    console.error('Error reading db.json in hero-images API:', err);
-  }
-  return { streams: [], images: [], audioTracks: [], heroImages: [] };
+  return getServerDb();
 }
 
 async function writeDb(data: any, commitMessage = 'Update hero media') {

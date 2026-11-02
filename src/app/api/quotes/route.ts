@@ -3,19 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import { INITIAL_QUOTES } from '@/data/initialData';
 import { QuoteItem } from '@/types';
+import { getServerDb } from '@/lib/serverDb';
 
 const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
 
 function readDb() {
-  try {
-    if (fs.existsSync(dbPath)) {
-      const data = fs.readFileSync(dbPath, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (err) {
-    console.error('Error reading db.json:', err);
-  }
-  return { quotes: INITIAL_QUOTES, gallery: [] };
+  const db = getServerDb();
+  return db && db.quotes ? db : { quotes: INITIAL_QUOTES, gallery: [] };
 }
 
 function writeDb(data: any) {

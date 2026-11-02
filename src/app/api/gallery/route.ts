@@ -3,19 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import { INITIAL_GALLERY } from '@/data/initialData';
 import { GalleryImage } from '@/types';
+import { getServerDb } from '@/lib/serverDb';
 
 const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
 
 function readDb() {
-  try {
-    if (fs.existsSync(dbPath)) {
-      const data = fs.readFileSync(dbPath, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (err) {
-    console.error('Error reading db.json:', err);
-  }
-  return { quotes: [], gallery: INITIAL_GALLERY };
+  const db = getServerDb();
+  return db && db.gallery ? db : { quotes: [], gallery: INITIAL_GALLERY };
 }
 
 function writeDb(data: any) {

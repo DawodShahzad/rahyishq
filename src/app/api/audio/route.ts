@@ -2,19 +2,12 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { AudioTrack } from '@/types';
+import { getServerDb } from '@/lib/serverDb';
 
 const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
 
 function readDb() {
-  try {
-    if (fs.existsSync(dbPath)) {
-      const data = fs.readFileSync(dbPath, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (err) {
-    console.error('Error reading db.json:', err);
-  }
-  return { streams: [], images: [], audioTracks: [] };
+  return getServerDb();
 }
 
 function writeDb(data: any) {

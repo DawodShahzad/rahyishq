@@ -255,7 +255,8 @@
       ],
       "description": "",
       "dateAdded": "2026-10-28",
-      "aspectRatio": "portrait"
+      "aspectRatio": "portrait",
+      "views": 1
     },
     {
       "id": "img-1793183140073-v0sp",
@@ -653,5 +654,15 @@
     "footerEnglishText": "Preserving the photographic, calligraphic, and manuscript heritage of Hazrat Sufi Abu Anees Muhammad Barkat Ali (رحمۃ اللہ علیہ).",
     "footerArabicText": "ذکر  •   فکر  •  خدمت  •  تبلیغ",
     "platformName": "Rahy Ishq"
+  },
+  "analytics": {
+    "dailyVisitors": {
+      "2026-11-02": {
+        "unique": 1,
+        "total": 3
+      }
+    },
+    "totalVisitors": 1,
+    "totalPageViews": 3
   }
 }

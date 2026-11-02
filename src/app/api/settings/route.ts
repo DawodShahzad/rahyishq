@@ -23,17 +23,11 @@ const defaultSettings = {
 };
 
 import { syncDbToGitHub, isGitHubSyncConfigured } from '@/lib/githubSync';
+import { getServerDb } from '@/lib/serverDb';
 
 function readDb() {
-  try {
-    if (fs.existsSync(dbPath)) {
-      const data = fs.readFileSync(dbPath, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (err) {
-    console.error('Error reading db.json in settings API:', err);
-  }
-  return { settings: defaultSettings };
+  const db = getServerDb();
+  return db && db.settings ? db : { settings: defaultSettings };
 }
 
 async function writeDb(data: any, commitMessage = 'Update site settings') {
