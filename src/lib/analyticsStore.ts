@@ -1,43 +1,44 @@
 /**
  * Live Analytics & Stats Storage Engine
  * 
- * In Production (Vercel):
- * Serverless functions have an ephemeral/read-only filesystem.
+ * In Production (Cloudflare Pages / Vercel):
+ * Serverless / Edge functions run on a read-only filesystem.
  * If UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL and KV_REST_API_TOKEN)
- * are provided in Vercel environment variables, stats (image views, downloads, daily visitors)
- * are stored and incremented in real-time in Redis with zero site rebuilds!
+ * are provided in Cloudflare Pages environment variables, stats (image views, downloads, daily visitors)
+ * are incremented and queried in real-time in Redis with zero site rebuilds!
  * 
  * In Localhost / Fallback:
- * If Redis environment variables are not configured, it gracefully reads and writes
- * to local `src/data/db.json`.
+ * If Redis environment variables are not configured, it gracefully reads/writes to
+ * memory and local `src/data/db.json` when available.
  */
 
 import fs from 'fs';
-import path from 'path';
 import { FeedImage } from '@/types';
-import { getServerDb } from '@/lib/serverDb';
+import { getServerDb, getDbPath } from '@/lib/serverDb';
 
-const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
+// Module-level in-memory stats cache for ephemeral / worker instances
+const inMemoryImageStats = new Map<string, { views: number; downloads: number }>();
 
 function getRedisConfig() {
   // 1. Direct standard names
   let url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || process.env.STORAGE_REST_API_URL;
   let token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || process.env.STORAGE_REST_API_TOKEN;
 
-  // 2. Dynamic check for any prefix (e.g. STORAGE_REST_API_URL, KV_REST_API_URL, etc.)
+  // 2. Dynamic check for any prefix
   if (!url || !token) {
     for (const [key, value] of Object.entries(process.env)) {
       if (!value) continue;
-      // Match any URL ending with REST_API_URL or REST_URL
       if (key.endsWith('REST_API_URL') || key.endsWith('REST_URL') || key.includes('REDIS_REST_URL')) {
         url = url || value;
       }
-      // Match write token (avoid read-only token)
       if ((key.endsWith('REST_API_TOKEN') || key.endsWith('REST_TOKEN') || key.includes('REDIS_REST_TOKEN')) && !key.includes('READ_ONLY')) {
         token = token || value;
       }
     }
   }
+
+  url = url ? url.trim() : undefined;
+  token = token ? token.trim() : undefined;
 
   return { url, token, isConfigured: Boolean(url && token) };
 }
@@ -74,11 +75,15 @@ function readLocalDb() {
 
 function writeLocalDb(data: any) {
   try {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
-    return true;
+    const dbPath = getDbPath();
+    if (dbPath && typeof fs !== 'undefined' && typeof fs.writeFileSync === 'function') {
+      fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
+      return true;
+    }
   } catch {
-    return false;
+    // Read-only filesystem in Cloudflare Pages
   }
+  return false;
 }
 
 /**
@@ -88,30 +93,50 @@ export async function trackImageStat(
   imageId: string,
   action: 'view' | 'download'
 ): Promise<{ views: number; downloads: number }> {
+  const cleanId = decodeURIComponent(imageId).trim();
   const redis = getRedisConfig();
 
+  // Find baseline stats from bundled db.json
+  const db = readLocalDb();
+  const img = (db.images || []).find((i: FeedImage) => i.id === cleanId || i.id === imageId);
+  const baseViews = img?.views || 0;
+  const baseDownloads = img?.downloads || 0;
+
   if (redis.isConfigured) {
-    const key = `img:${imageId}:${action}s`;
-    const newCount = await callRedisCommand(['INCR', key]);
+    const statName = action === 'view' ? 'views' : 'downloads';
+    const otherStatName = action === 'view' ? 'downloads' : 'views';
 
-    // Also get the other metric
-    const otherAction = action === 'view' ? 'download' : 'view';
-    const otherKey = `img:${imageId}:${otherAction}s`;
-    const otherCount = await callRedisCommand(['GET', otherKey]);
+    const newCount = await callRedisCommand(['INCR', `img:${cleanId}:${statName}`]);
+    const otherCount = await callRedisCommand(['GET', `img:${cleanId}:${otherStatName}`]);
 
-    const views = action === 'view' ? Number(newCount || 1) : Number(otherCount || 0);
-    const downloads = action === 'download' ? Number(newCount || 1) : Number(otherCount || 0);
+    const liveIncrementThis = Number(newCount || 1);
+    const liveIncrementOther = Number(otherCount || 0);
 
-    // Also maintain global aggregates
+    const views = action === 'view' 
+      ? baseViews + liveIncrementThis 
+      : baseViews + liveIncrementOther;
+
+    const downloads = action === 'download' 
+      ? baseDownloads + liveIncrementThis 
+      : baseDownloads + liveIncrementOther;
+
+    // Maintain global aggregates
     await callRedisCommand(['INCR', `stats:total_${action}s`]);
+
+    // Also update local cache
+    inMemoryImageStats.set(cleanId, { views, downloads });
 
     return { views, downloads };
   }
 
-  // Fallback to local db.json
-  const db = readLocalDb();
-  if (!db.images) db.images = [];
-  const img = db.images.find((i: FeedImage) => i.id === imageId);
+  // Fallback: In-memory & local db.json
+  const currentMemory = inMemoryImageStats.get(cleanId) || { views: baseViews, downloads: baseDownloads };
+  if (action === 'view') {
+    currentMemory.views += 1;
+  } else {
+    currentMemory.downloads += 1;
+  }
+  inMemoryImageStats.set(cleanId, currentMemory);
 
   if (img) {
     if (action === 'view') {
@@ -120,32 +145,48 @@ export async function trackImageStat(
       img.downloads = (img.downloads || 0) + 1;
     }
     writeLocalDb(db);
-    return { views: img.views || 0, downloads: img.downloads || 0 };
   }
 
-  return { views: 0, downloads: 0 };
+  return currentMemory;
 }
 
 /**
  * Fetch image statistics
  */
 export async function getImageStat(imageId: string): Promise<{ views: number; downloads: number }> {
+  const cleanId = decodeURIComponent(imageId).trim();
   const redis = getRedisConfig();
 
+  // Find baseline stats from bundled db.json
+  const db = readLocalDb();
+  const img = (db.images || []).find((i: FeedImage) => i.id === cleanId || i.id === imageId);
+  const baseViews = img?.views || 0;
+  const baseDownloads = img?.downloads || 0;
+
   if (redis.isConfigured) {
-    const views = await callRedisCommand(['GET', `img:${imageId}:views`]);
-    const downloads = await callRedisCommand(['GET', `img:${imageId}:downloads`]);
+    const redisViews = await callRedisCommand(['GET', `img:${cleanId}:views`]);
+    const redisDownloads = await callRedisCommand(['GET', `img:${cleanId}:downloads`]);
+
+    const views = baseViews + Number(redisViews || 0);
+    const downloads = baseDownloads + Number(redisDownloads || 0);
+
+    inMemoryImageStats.set(cleanId, { views, downloads });
+
+    return { views, downloads };
+  }
+
+  // Fallback: In-memory or local DB
+  const mem = inMemoryImageStats.get(cleanId);
+  if (mem) {
     return {
-      views: Number(views || 0),
-      downloads: Number(downloads || 0),
+      views: Math.max(mem.views, baseViews),
+      downloads: Math.max(mem.downloads, baseDownloads),
     };
   }
 
-  const db = readLocalDb();
-  const img = (db.images || []).find((i: FeedImage) => i.id === imageId);
   return {
-    views: img?.views || 0,
-    downloads: img?.downloads || 0,
+    views: baseViews,
+    downloads: baseDownloads,
   };
 }
 

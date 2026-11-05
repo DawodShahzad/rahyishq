@@ -257,10 +257,13 @@ export default function AdminPage() {
 
       if (res.ok) {
         const data = await res.json().catch(() => null);
-        const syncMsg = data?.syncedToGitHub
-          ? '🚀 Saved & Auto-committed to GitHub! Live site will update in ~45s.'
-          : 'Appearance, branding, navbar & sound wave settings saved successfully!';
-        showNotify('success', syncMsg);
+        if (data?.syncedToGitHub) {
+          showNotify('success', '🚀 Saved & Auto-committed to GitHub! Live site will update in ~45s.');
+        } else if (data?.githubError) {
+          showNotify('error', `⚠️ GitHub Sync Warning: Settings saved locally, but GitHub push failed: ${data.githubError}`);
+        } else {
+          showNotify('success', 'Appearance, branding, navbar & sound wave settings saved successfully!');
+        }
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('site-settings-updated'));
         }
@@ -344,10 +347,13 @@ export default function AdminPage() {
 
       if (res.ok) {
         const data = await res.json().catch(() => null);
-        const syncMsg = data?.syncedToGitHub
-          ? '🚀 Published & Auto-committed to GitHub! Live site is updating now (~45s).'
-          : (linkAlreadyExists ? 'Duplicate image accepted after 3 warnings and published!' : 'Image successfully added to the stream!');
-        showNotify('success', syncMsg);
+        if (data?.syncedToGitHub) {
+          showNotify('success', '🚀 Published & Auto-committed to GitHub! Live site is updating now (~45s).');
+        } else if (data?.githubError) {
+          showNotify('error', `⚠️ GitHub Push Failed: ${data.githubError}`);
+        } else {
+          showNotify('success', linkAlreadyExists ? 'Duplicate image accepted after 3 warnings and published!' : 'Image successfully added to the stream!');
+        }
         setImageUrl('');
         setImageTitle('');
         setImageRefNumber('');
@@ -361,7 +367,7 @@ export default function AdminPage() {
         fetchData();
       } else {
         const data = await res.json().catch(() => ({}));
-        showNotify('error', data.error || 'Failed to add image.');
+        showNotify('error', data.error || data.githubError || 'Failed to add image.');
       }
     } catch (err: any) {
       showNotify('error', err.message || 'Error creating image');
@@ -377,10 +383,13 @@ export default function AdminPage() {
       const res = await fetch(`/api/images?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         const data = await res.json().catch(() => null);
-        const syncMsg = data?.syncedToGitHub
-          ? '🚀 Image removed & Auto-committed to GitHub! Live site updating in ~45s.'
-          : 'Image removed.';
-        showNotify('success', syncMsg);
+        if (data?.syncedToGitHub) {
+          showNotify('success', '🚀 Image removed & Auto-committed to GitHub! Live site updating in ~45s.');
+        } else if (data?.githubError) {
+          showNotify('error', `⚠️ GitHub Push Failed: ${data.githubError}`);
+        } else {
+          showNotify('success', 'Image removed.');
+        }
         setImages(prev => prev.filter(img => img.id !== id));
       }
     } catch {
@@ -431,10 +440,13 @@ export default function AdminPage() {
 
       if (res.ok) {
         const data = await res.json().catch(() => null);
-        const syncMsg = data?.syncedToGitHub
-          ? '🚀 Hero media added & Auto-committed to GitHub! Live site updating in ~45s.'
-          : 'Hero media added! It will be randomly shown on homepage.';
-        showNotify('success', syncMsg);
+        if (data?.syncedToGitHub) {
+          showNotify('success', '🚀 Hero media added & Auto-committed to GitHub! Live site updating in ~45s.');
+        } else if (data?.githubError) {
+          showNotify('error', `⚠️ GitHub Push Failed: ${data.githubError}`);
+        } else {
+          showNotify('success', 'Hero media added! It will be randomly shown on homepage.');
+        }
         setHeroUrl('');
         setHeroTitle('');
         setHeroAudioUrl('');
@@ -446,7 +458,7 @@ export default function AdminPage() {
         fetchData();
       } else {
         const data = await res.json().catch(() => ({}));
-        showNotify('error', data.error || 'Failed to add hero media.');
+        showNotify('error', data.error || data.githubError || 'Failed to add hero media.');
       }
     } catch (err: any) {
       showNotify('error', err.message || 'Error adding hero media');
@@ -462,10 +474,13 @@ export default function AdminPage() {
       const res = await fetch(`/api/hero-images?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         const data = await res.json().catch(() => null);
-        const syncMsg = data?.syncedToGitHub
-          ? '🚀 Hero media removed & Auto-committed to GitHub! Live site updating in ~45s.'
-          : 'Hero image deleted.';
-        showNotify('success', syncMsg);
+        if (data?.syncedToGitHub) {
+          showNotify('success', '🚀 Hero media removed & Auto-committed to GitHub! Live site updating in ~45s.');
+        } else if (data?.githubError) {
+          showNotify('error', `⚠️ GitHub Push Failed: ${data.githubError}`);
+        } else {
+          showNotify('success', 'Hero image deleted.');
+        }
         setHeroImages(prev => prev.filter(h => h.id !== id));
       }
     } catch {
@@ -585,6 +600,7 @@ export default function AdminPage() {
           </p>
           <Link
             href="/"
+            prefetch={false}
             className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white text-xs font-semibold rounded-full"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -645,6 +661,7 @@ export default function AdminPage() {
           <div className="mt-6 pt-6 border-t border-neutral-100 text-center">
             <Link
               href="/"
+              prefetch={false}
               className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors"
             >
               ← Back to public website
@@ -677,6 +694,7 @@ export default function AdminPage() {
             <Link
               href="/"
               target="_blank"
+              prefetch={false}
               className="flex-1 sm:flex-none justify-center inline-flex items-center gap-1.5 px-3.5 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-medium rounded-full transition-colors"
             >
               <Eye className="w-3.5 h-3.5" />
@@ -725,18 +743,25 @@ export default function AdminPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-neutral-50 border border-neutral-200/90 rounded-2xl p-3.5 sm:p-4 flex items-start gap-3 text-xs text-neutral-600">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-              <div className="leading-relaxed">
-                <div className="flex items-center gap-2">
-                  <strong className="text-neutral-900 font-medium">Isolated Backend Portal</strong>
-                  <span className="text-[10px] bg-neutral-200 text-neutral-700 font-semibold px-2 py-0.5 rounded-md">
-                    Passcode Protected
-                  </span>
+            <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-amber-500 text-white flex-shrink-0 shadow-xs">
+                  <AlertCircle className="w-4 h-4" />
                 </div>
-                <p className="text-neutral-600 text-[11px] mt-0.5">
-                  Secured with passcode. Silent mode active (no music playback on admin).
-                </p>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-amber-950">GitHub Live Push Inactive</span>
+                    <span className="text-[10px] sm:text-[11px] bg-white text-amber-800 font-semibold px-2 py-0.5 rounded-full border border-amber-200">
+                      GITHUB_TOKEN Not Detected
+                    </span>
+                  </div>
+                  <p className="text-amber-800 text-[11px] mt-0.5">
+                    Online photo uploads cannot commit to GitHub until <strong>GITHUB_TOKEN</strong> is added to Cloudflare Pages Settings &rarr; Environment Variables.
+                  </p>
+                </div>
+              </div>
+              <div className="shrink-0 text-[11px] text-amber-900 font-mono bg-amber-100/80 px-2.5 py-1 rounded-lg">
+                Repo: {syncStatus?.owner || 'DawodShahzad'}/{syncStatus?.repo || 'rahyishq'}
               </div>
             </div>
           )}
@@ -1218,6 +1243,7 @@ export default function AdminPage() {
                           <Link
                             href={`/image/${image.id}`}
                             target="_blank"
+                            prefetch={false}
                             className="font-medium text-neutral-900 hover:underline flex items-center gap-1"
                           >
                             <span className="truncate">{image.title}</span>
@@ -1340,6 +1366,7 @@ export default function AdminPage() {
                       <Link
                         href={`/image/${image.id}`}
                         target="_blank"
+                        prefetch={false}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-[11px] font-medium rounded-lg transition-colors"
                       >
                         <span>View</span>

@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
+import { getServerDb, writeServerDb } from '@/lib/serverDb';
 
 const defaultSettings = {
   platformName: 'Rahy Ishq',
@@ -22,29 +19,9 @@ const defaultSettings = {
   footerArabicText: 'خدمتِ خلق • ذکرِ الٰہی • نشرِ قرآن مجید',
 };
 
-import { syncDbToGitHub, isGitHubSyncConfigured } from '@/lib/githubSync';
-import { getServerDb } from '@/lib/serverDb';
-
 function readDb() {
   const db = getServerDb();
   return db && db.settings ? db : { settings: defaultSettings };
-}
-
-async function writeDb(data: any, commitMessage = 'Update site settings') {
-  let localWritten = false;
-  try {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
-    localWritten = true;
-  } catch (err) {
-    console.warn('[Local DB] Settings write skipped or read-only (normal in serverless/Vercel):', err);
-  }
-
-  let githubResult: any = null;
-  if (isGitHubSyncConfigured()) {
-    githubResult = await syncDbToGitHub(data, commitMessage);
-  }
-
-  return { localWritten, githubResult };
 }
 
 export async function GET() {
@@ -73,61 +50,69 @@ export async function POST(req: Request) {
       footerArabicText,
     } = body;
 
-    const db = readDb();
-    if (!db.settings) db.settings = { ...defaultSettings };
+    let updatedSettings: any = null;
 
-    if (platformName !== undefined) {
-      db.settings.platformName = typeof platformName === 'string' && platformName.trim() ? platformName.trim() : 'Rahy Ishq';
-    }
-    if (logoUrl !== undefined) {
-      db.settings.logoUrl = typeof logoUrl === 'string' ? logoUrl.trim() : '';
-    }
-    if (hideSiteName !== undefined) {
-      db.settings.hideSiteName = Boolean(hideSiteName);
-    }
-    if (musicIconUrl !== undefined) {
-      db.settings.musicIconUrl = typeof musicIconUrl === 'string' ? musicIconUrl.trim() : '';
-    }
-    if (waveColor !== undefined) {
-      db.settings.waveColor = typeof waveColor === 'string' ? waveColor.trim() : '#84cc16';
-    }
-    if (homeBgImageUrl !== undefined) {
-      db.settings.homeBgImageUrl = typeof homeBgImageUrl === 'string' ? homeBgImageUrl.trim() : '';
-    }
-    if (navbarColor !== undefined) {
-      db.settings.navbarColor = typeof navbarColor === 'string' ? navbarColor.trim() : '#ffffff';
-    }
-    if (navbarOpacity !== undefined) {
-      db.settings.navbarOpacity = typeof navbarOpacity === 'number' ? Math.max(0, Math.min(100, navbarOpacity)) : 75;
-    }
-    if (navbarBlur !== undefined) {
-      db.settings.navbarBlur = typeof navbarBlur === 'number' ? Math.max(0, Math.min(40, navbarBlur)) : 12;
-    }
-    if (facebookUrl !== undefined) {
-      db.settings.facebookUrl = typeof facebookUrl === 'string' ? facebookUrl.trim() : '';
-    }
-    if (whatsappUrl !== undefined) {
-      db.settings.whatsappUrl = typeof whatsappUrl === 'string' ? whatsappUrl.trim() : '';
-    }
-    if (instagramUrl !== undefined) {
-      db.settings.instagramUrl = typeof instagramUrl === 'string' ? instagramUrl.trim() : '';
-    }
-    if (tiktokUrl !== undefined) {
-      db.settings.tiktokUrl = typeof tiktokUrl === 'string' ? tiktokUrl.trim() : '';
-    }
-    if (footerEnglishText !== undefined) {
-      db.settings.footerEnglishText = typeof footerEnglishText === 'string' ? footerEnglishText.trim() : '';
-    }
-    if (footerArabicText !== undefined) {
-      db.settings.footerArabicText = typeof footerArabicText === 'string' ? footerArabicText.trim() : '';
-    }
+    const syncRes = await writeServerDb((currentDb: any) => {
+      if (!currentDb.settings) currentDb.settings = { ...defaultSettings };
 
-    const syncRes = await writeDb(db, 'feat: update appearance and branding settings via Mobile Admin');
+      if (platformName !== undefined) {
+        currentDb.settings.platformName = typeof platformName === 'string' && platformName.trim() ? platformName.trim() : 'Rahy Ishq';
+      }
+      if (logoUrl !== undefined) {
+        currentDb.settings.logoUrl = typeof logoUrl === 'string' ? logoUrl.trim() : '';
+      }
+      if (hideSiteName !== undefined) {
+        currentDb.settings.hideSiteName = Boolean(hideSiteName);
+      }
+      if (musicIconUrl !== undefined) {
+        currentDb.settings.musicIconUrl = typeof musicIconUrl === 'string' ? musicIconUrl.trim() : '';
+      }
+      if (waveColor !== undefined) {
+        currentDb.settings.waveColor = typeof waveColor === 'string' ? waveColor.trim() : '#84cc16';
+      }
+      if (homeBgImageUrl !== undefined) {
+        currentDb.settings.homeBgImageUrl = typeof homeBgImageUrl === 'string' ? homeBgImageUrl.trim() : '';
+      }
+      if (navbarColor !== undefined) {
+        currentDb.settings.navbarColor = typeof navbarColor === 'string' ? navbarColor.trim() : '#ffffff';
+      }
+      if (navbarOpacity !== undefined) {
+        currentDb.settings.navbarOpacity = typeof navbarOpacity === 'number' ? Math.max(0, Math.min(100, navbarOpacity)) : 75;
+      }
+      if (navbarBlur !== undefined) {
+        currentDb.settings.navbarBlur = typeof navbarBlur === 'number' ? Math.max(0, Math.min(40, navbarBlur)) : 12;
+      }
+      if (facebookUrl !== undefined) {
+        currentDb.settings.facebookUrl = typeof facebookUrl === 'string' ? facebookUrl.trim() : '';
+      }
+      if (whatsappUrl !== undefined) {
+        currentDb.settings.whatsappUrl = typeof whatsappUrl === 'string' ? whatsappUrl.trim() : '';
+      }
+      if (instagramUrl !== undefined) {
+        currentDb.settings.instagramUrl = typeof instagramUrl === 'string' ? instagramUrl.trim() : '';
+      }
+      if (tiktokUrl !== undefined) {
+        currentDb.settings.tiktokUrl = typeof tiktokUrl === 'string' ? tiktokUrl.trim() : '';
+      }
+      if (footerEnglishText !== undefined) {
+        currentDb.settings.footerEnglishText = typeof footerEnglishText === 'string' ? footerEnglishText.trim() : '';
+      }
+      if (footerArabicText !== undefined) {
+        currentDb.settings.footerArabicText = typeof footerArabicText === 'string' ? footerArabicText.trim() : '';
+      }
+
+      updatedSettings = currentDb.settings;
+      return currentDb;
+    }, 'feat: update appearance and branding settings via Mobile Admin');
+
+    const isSynced = Boolean(syncRes.githubResult?.success);
+    const githubError = syncRes.githubResult?.error;
 
     return NextResponse.json({ 
       success: true, 
-      settings: db.settings,
-      syncedToGitHub: Boolean(syncRes.githubResult?.success),
+      settings: updatedSettings,
+      syncedToGitHub: isSynced,
+      githubError: isSynced ? undefined : githubError,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });

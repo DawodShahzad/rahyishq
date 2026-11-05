@@ -1,31 +1,9 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import { FeedImage } from '@/types';
-import { syncDbToGitHub, isGitHubSyncConfigured } from '@/lib/githubSync';
-import { getServerDb } from '@/lib/serverDb';
-
-const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
+import { getServerDb, writeServerDb } from '@/lib/serverDb';
 
 function readDb() {
   return getServerDb();
-}
-
-async function writeDb(data: any, commitMessage = 'Update images database') {
-  let localWritten = false;
-  try {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
-    localWritten = true;
-  } catch (err) {
-    console.warn('[Local DB] Write skipped or read-only (normal in serverless/Vercel):', err);
-  }
-
-  let githubResult: any = null;
-  if (isGitHubSyncConfigured()) {
-    githubResult = await syncDbToGitHub(data, commitMessage);
-  }
-
-  return { localWritten, githubResult };
 }
 
 export async function GET(req: Request) {
@@ -39,7 +17,7 @@ export async function GET(req: Request) {
   let images: FeedImage[] = db.images || [];
 
   if (id) {
-    const single = images.find(img => img.id === id);
+    const single = images.find(img => img.id === id || img.id === decodeURIComponent(id));
     if (!single) {
       return NextResponse.json({ error: 'Image not found' }, { status: 404 });
     }
@@ -56,7 +34,7 @@ export async function GET(req: Request) {
     images = images.filter(img => img.streamIds && img.streamIds.includes(streamId));
   }
 
-  // Filter by search query (reference number, title, or tags)
+  // Filter by search query (reference number, title, description, or tags)
   if (query) {
     images = images.filter(img => {
       const matchRef = img.referenceNumber?.toLowerCase().includes(query);
@@ -128,16 +106,21 @@ export async function POST(req: Request) {
       aspectRatio: body.aspectRatio || 'landscape',
     };
 
-    const db = readDb();
-    if (!db.images) db.images = [];
-    db.images.unshift(newImage);
-    const syncRes = await writeDb(db, `feat: add image [${newImage.referenceNumber || newImage.title}] via Mobile Admin`);
+    const syncRes = await writeServerDb((currentDb: any) => {
+      currentDb.images = currentDb.images || [];
+      currentDb.images.unshift(newImage);
+      return currentDb;
+    }, `feat: add image [${newImage.referenceNumber || newImage.title}] via Mobile Admin`);
+
+    const isSynced = Boolean(syncRes.githubResult?.success);
+    const githubError = syncRes.githubResult?.error;
 
     return NextResponse.json({ 
       success: true, 
       image: newImage,
-      syncedToGitHub: Boolean(syncRes.githubResult?.success),
+      syncedToGitHub: isSynced,
       commitSha: syncRes.githubResult?.commitSha,
+      githubError: isSynced ? undefined : githubError,
     }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
@@ -147,50 +130,61 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { id, url, title, referenceNumber, adminNotes, tags, streamIds, description } = body;
+    const { id, url, title, referenceNumber, adminNotes, tags, streamIds, description, aspectRatio } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Image ID is required' }, { status: 400 });
     }
 
-    const db = readDb();
-    if (!db.images) db.images = [];
-    const index = db.images.findIndex((img: FeedImage) => img.id === id);
-
-    if (index === -1) {
-      return NextResponse.json({ error: 'Image not found' }, { status: 404 });
+    let processedTags: string[] | undefined = undefined;
+    if (tags !== undefined) {
+      if (Array.isArray(tags)) {
+        processedTags = tags.map(t => String(t).trim()).filter(Boolean);
+      } else if (typeof tags === 'string') {
+        processedTags = tags.split(',').map(t => t.trim()).filter(Boolean);
+      }
     }
 
-    let processedTags = db.images[index].tags;
-    if (Array.isArray(tags)) {
-      processedTags = tags.map(t => String(t).trim()).filter(Boolean);
-    } else if (typeof tags === 'string') {
-      processedTags = tags.split(',').map(t => t.trim()).filter(Boolean);
+    let processedStreams: string[] | undefined = undefined;
+    if (streamIds !== undefined) {
+      if (Array.isArray(streamIds)) {
+        processedStreams = streamIds.map(s => String(s).trim()).filter(Boolean);
+      } else if (typeof streamIds === 'string') {
+        processedStreams = streamIds.split(',').map(s => s.trim()).filter(Boolean);
+      }
     }
 
-    let processedStreams = db.images[index].streamIds;
-    if (Array.isArray(streamIds)) {
-      processedStreams = streamIds.map(s => String(s).trim()).filter(Boolean);
-    } else if (typeof streamIds === 'string') {
-      processedStreams = streamIds.split(',').map(s => s.trim()).filter(Boolean);
-    }
+    let updatedImage: FeedImage | null = null;
 
-    db.images[index] = {
-      ...db.images[index],
-      url: url !== undefined ? url.trim() : db.images[index].url,
-      title: title !== undefined ? title.trim() : db.images[index].title,
-      referenceNumber: referenceNumber !== undefined ? referenceNumber.trim() : db.images[index].referenceNumber,
-      adminNotes: adminNotes !== undefined ? adminNotes.trim() : db.images[index].adminNotes,
-      tags: processedTags,
-      streamIds: processedStreams,
-      description: description !== undefined ? description.trim() : db.images[index].description,
-    };
+    const syncRes = await writeServerDb((currentDb: any) => {
+      currentDb.images = currentDb.images || [];
+      const index = currentDb.images.findIndex((img: FeedImage) => img.id === id);
 
-    const syncRes = await writeDb(db, `feat: update image [${db.images[index].referenceNumber || id}] via Mobile Admin`);
+      if (index !== -1) {
+        currentDb.images[index] = {
+          ...currentDb.images[index],
+          url: url !== undefined ? url.trim() : currentDb.images[index].url,
+          title: title !== undefined ? title.trim() : currentDb.images[index].title,
+          referenceNumber: referenceNumber !== undefined ? referenceNumber.trim() : currentDb.images[index].referenceNumber,
+          adminNotes: adminNotes !== undefined ? adminNotes.trim() : currentDb.images[index].adminNotes,
+          tags: processedTags !== undefined ? processedTags : currentDb.images[index].tags,
+          streamIds: processedStreams !== undefined ? processedStreams : currentDb.images[index].streamIds,
+          description: description !== undefined ? description.trim() : currentDb.images[index].description,
+          aspectRatio: aspectRatio !== undefined ? aspectRatio : currentDb.images[index].aspectRatio,
+        };
+        updatedImage = currentDb.images[index];
+      }
+      return currentDb;
+    }, `feat: update image [${id}] via Mobile Admin`);
+
+    const isSynced = Boolean(syncRes.githubResult?.success);
+    const githubError = syncRes.githubResult?.error;
+
     return NextResponse.json({ 
       success: true, 
-      image: db.images[index],
-      syncedToGitHub: Boolean(syncRes.githubResult?.success),
+      image: updatedImage,
+      syncedToGitHub: isSynced,
+      githubError: isSynced ? undefined : githubError,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
@@ -206,18 +200,22 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Image ID is required' }, { status: 400 });
     }
 
-    const db = readDb();
-    if (db.images) {
-      db.images = db.images.filter((img: FeedImage) => img.id !== id);
-      const syncRes = await writeDb(db, `feat: delete image [${id}] via Mobile Admin`);
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Image deleted successfully',
-        syncedToGitHub: Boolean(syncRes.githubResult?.success),
-      });
-    }
+    const syncRes = await writeServerDb((currentDb: any) => {
+      if (currentDb.images) {
+        currentDb.images = currentDb.images.filter((img: FeedImage) => img.id !== id);
+      }
+      return currentDb;
+    }, `feat: delete image [${id}] via Mobile Admin`);
 
-    return NextResponse.json({ success: true, message: 'Image deleted successfully' });
+    const isSynced = Boolean(syncRes.githubResult?.success);
+    const githubError = syncRes.githubResult?.error;
+
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Image deleted successfully',
+      syncedToGitHub: isSynced,
+      githubError: isSynced ? undefined : githubError,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }

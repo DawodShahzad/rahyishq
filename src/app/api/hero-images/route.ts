@@ -1,31 +1,9 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import { HeroImage } from '@/types';
-import { syncDbToGitHub, isGitHubSyncConfigured } from '@/lib/githubSync';
-import { getServerDb } from '@/lib/serverDb';
-
-const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
+import { getServerDb, writeServerDb } from '@/lib/serverDb';
 
 function readDb() {
   return getServerDb();
-}
-
-async function writeDb(data: any, commitMessage = 'Update hero media') {
-  let localWritten = false;
-  try {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
-    localWritten = true;
-  } catch (err) {
-    console.warn('[Local DB] Hero write skipped or read-only (normal in serverless/Vercel):', err);
-  }
-
-  let githubResult: any = null;
-  if (isGitHubSyncConfigured()) {
-    githubResult = await syncDbToGitHub(data, commitMessage);
-  }
-
-  return { localWritten, githubResult };
 }
 
 export async function GET() {
@@ -49,20 +27,26 @@ export async function POST(req: Request) {
       id: `hero-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       url: trimmedUrl,
       mediaType: isVideo ? 'video' : 'image',
-      title: title ? title.trim() : 'Makalat-E-Hikmat Hero',
-      audioUrl: audioUrl && audioUrl.trim() ? audioUrl.trim() : undefined,
+      title: title ? title.trim() : '',
+      audioUrl: audioUrl ? audioUrl.trim() : undefined,
       dateAdded: new Date().toISOString().split('T')[0],
     };
 
-    const db = readDb();
-    if (!db.heroImages) db.heroImages = [];
-    db.heroImages.unshift(newHero);
-    const syncRes = await writeDb(db, `feat: add hero media [${newHero.title || 'Hero'}] via Mobile Admin`);
+    const syncRes = await writeServerDb((currentDb: any) => {
+      currentDb.heroImages = currentDb.heroImages || [];
+      currentDb.heroImages.unshift(newHero);
+      return currentDb;
+    }, `feat: add hero media [${newHero.title || newHero.id}] via Mobile Admin`);
 
-    return NextResponse.json({ 
-      success: true, 
+    const isSynced = Boolean(syncRes.githubResult?.success);
+    const githubError = syncRes.githubResult?.error;
+
+    return NextResponse.json({
+      success: true,
       heroImage: newHero,
-      syncedToGitHub: Boolean(syncRes.githubResult?.success),
+      syncedToGitHub: isSynced,
+      commitSha: syncRes.githubResult?.commitSha,
+      githubError: isSynced ? undefined : githubError,
     }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
@@ -75,21 +59,25 @@ export async function DELETE(req: Request) {
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ error: 'Hero Image ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Hero ID is required' }, { status: 400 });
     }
 
-    const db = readDb();
-    if (db.heroImages) {
-      db.heroImages = db.heroImages.filter((h: HeroImage) => h.id !== id);
-      const syncRes = await writeDb(db, `feat: delete hero media [${id}] via Mobile Admin`);
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Hero image deleted successfully',
-        syncedToGitHub: Boolean(syncRes.githubResult?.success),
-      });
-    }
+    const syncRes = await writeServerDb((currentDb: any) => {
+      if (currentDb.heroImages) {
+        currentDb.heroImages = currentDb.heroImages.filter((h: HeroImage) => h.id !== id);
+      }
+      return currentDb;
+    }, `feat: delete hero media [${id}] via Mobile Admin`);
 
-    return NextResponse.json({ success: true, message: 'Hero image deleted successfully' });
+    const isSynced = Boolean(syncRes.githubResult?.success);
+    const githubError = syncRes.githubResult?.error;
+
+    return NextResponse.json({
+      success: true,
+      message: 'Hero media deleted',
+      syncedToGitHub: isSynced,
+      githubError: isSynced ? undefined : githubError,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }

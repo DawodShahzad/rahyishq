@@ -4,13 +4,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Upload, 
   Link as LinkIcon, 
-  Image as ImageIcon, 
   X, 
   RefreshCw, 
   CheckCircle2, 
   AlertCircle,
-  FileCheck,
-  FolderOpen
+  FolderOpen,
+  Cloud
 } from 'lucide-react';
 
 export interface ImageFileInputProps {
@@ -34,12 +33,11 @@ function formatBytes(bytes: number): string {
 
 /**
  * Optimizes and converts any local image file to a self-contained WebP/JPEG data URL.
- * Resizes large photos so they don't exceed serverless/network limits.
  */
 export async function processLocalImageFile(
   file: File,
-  maxDimension = 1920,
-  quality = 0.85
+  maxDimension = 1600,
+  quality = 0.8
 ): Promise<{
   dataUrl: string;
   originalSize: number;
@@ -54,7 +52,6 @@ export async function processLocalImageFile(
       return reject(new Error('Selected file is not an image. Please choose JPG, PNG, WEBP, or GIF.'));
     }
 
-    // Direct read for SVG / animated GIF to preserve vector sharpness or animation
     if (file.type === 'image/svg+xml' || file.type === 'image/gif') {
       const reader = new FileReader();
       reader.onload = () => {
@@ -90,7 +87,6 @@ export async function processLocalImageFile(
           detectedRatio = 'square';
         }
 
-        // Downscale proportionally if larger than maxDimension
         if (width > maxDimension || height > maxDimension) {
           if (width >= height) {
             height = Math.round((height * maxDimension) / width);
@@ -156,16 +152,16 @@ export default function ImageFileInput({
   label = 'Image Source',
   required = false,
   helperText,
-  compact = false,
-  maxDimension = 1920,
-  quality = 0.85,
+  maxDimension = 1600,
+  quality = 0.8,
 }: ImageFileInputProps) {
-  // Determine initial mode based on whether the value is a local data: URL or http(s) URL
   const isDataUrl = value?.startsWith('data:');
-  const [mode, setMode] = useState<'file' | 'url'>(isDataUrl ? 'file' : 'file');
+  // Default to URL mode since user is hosting images on 3rd party CDNs
+  const [mode, setMode] = useState<'url' | 'file'>(isDataUrl ? 'file' : 'url');
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [urlVerified, setUrlVerified] = useState<boolean>(false);
   const [fileMeta, setFileMeta] = useState<{
     name: string;
     originalSize: number;
@@ -175,13 +171,59 @@ export default function ImageFileInput({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Clear file meta if value was wiped externally (e.g. form reset)
+  // Clear metadata if value was cleared
   useEffect(() => {
     if (!value) {
       setFileMeta(null);
       setErrorMessage('');
+      setUrlVerified(false);
     }
   }, [value]);
+
+  // When a CDN URL is pasted, verify and detect aspect ratio
+  const handleUrlChange = (newUrl: string) => {
+    setErrorMessage('');
+    setUrlVerified(false);
+    const trimmed = newUrl.trim();
+    if (!trimmed) {
+      onChange('');
+      return;
+    }
+
+    onChange(trimmed);
+
+    // Preload image to test validity and measure aspect ratio
+    const testImg = new Image();
+    testImg.onload = () => {
+      setUrlVerified(true);
+      const w = testImg.naturalWidth;
+      const h = testImg.naturalHeight;
+      let ratio: 'landscape' | 'portrait' | 'square' = 'landscape';
+      if (w > h * 1.15) {
+        ratio = 'landscape';
+      } else if (h > w * 1.15) {
+        ratio = 'portrait';
+      } else {
+        ratio = 'square';
+      }
+
+      // Try extract filename from URL path
+      let cleanFilename = '';
+      try {
+        const u = new URL(trimmed);
+        const segments = u.pathname.split('/');
+        cleanFilename = segments[segments.length - 1] || '';
+      } catch {}
+
+      onChange(trimmed, cleanFilename, ratio);
+    };
+
+    testImg.onerror = () => {
+      setErrorMessage('The image URL could not be loaded. Please ensure it is a public direct link (ends in .jpg, .png, .webp, or from an image CDN).');
+    };
+
+    testImg.src = trimmed;
+  };
 
   const handleFile = async (file: File) => {
     setErrorMessage('');
@@ -231,6 +273,7 @@ export default function ImageFileInput({
     onChange('', undefined, undefined);
     setFileMeta(null);
     setErrorMessage('');
+    setUrlVerified(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -251,6 +294,25 @@ export default function ImageFileInput({
           <button
             type="button"
             onClick={() => {
+              setMode('url');
+              setErrorMessage('');
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md font-medium transition-all ${
+              mode === 'url'
+                ? 'bg-white text-neutral-900 shadow-xs'
+                : 'text-neutral-500 hover:text-neutral-900'
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5 text-emerald-600" />
+            <span>3rd Party CDN Link</span>
+            <span className="hidden sm:inline text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full ml-1">
+              Recommended
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
               setMode('file');
               setErrorMessage('');
             }}
@@ -262,21 +324,6 @@ export default function ImageFileInput({
           >
             <FolderOpen className="w-3.5 h-3.5 text-neutral-700" />
             <span>Upload from Computer</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('url');
-              setErrorMessage('');
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md font-medium transition-all ${
-              mode === 'url'
-                ? 'bg-white text-neutral-900 shadow-xs'
-                : 'text-neutral-500 hover:text-neutral-900'
-            }`}
-          >
-            <LinkIcon className="w-3.5 h-3.5 text-neutral-700" />
-            <span>Image URL Link</span>
           </button>
         </div>
       </div>
@@ -294,9 +341,68 @@ export default function ImageFileInput({
         className="hidden"
       />
 
-      {/* MODE 1: LOCAL FILE UPLOAD */}
+      {/* MODE 1: 3RD PARTY CDN / DIRECT IMAGE URL (RECOMMENDED) */}
+      {mode === 'url' && (
+        <div className="space-y-2">
+          <div className="relative">
+            <input
+              type="text"
+              value={isDataUrl ? '' : value}
+              onChange={(e) => handleUrlChange(e.target.value)}
+              placeholder="e.g. https://res.cloudinary.com/... or https://i.imgur.com/... or direct CDN link"
+              className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+            />
+            {value && !isDataUrl && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700"
+                title="Clear URL"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <p className="text-[11px] text-neutral-500">
+            Paste direct image link from your external host (Cloudinary, Imgur, ImageKit, Postimages, Supabase Storage, etc.).
+          </p>
+
+          {/* Live Preview for CDN URL */}
+          {value && !isDataUrl && (
+            <div className="p-3 bg-white border border-neutral-200 rounded-xl flex items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-3 min-w-0">
+                <img
+                  src={value}
+                  alt="CDN Preview"
+                  className="h-14 w-14 rounded-lg object-contain bg-neutral-100 border border-neutral-200 shrink-0"
+                />
+                <div className="text-xs min-w-0">
+                  <span className="font-medium text-neutral-800 block truncate max-w-sm">
+                    {value}
+                  </span>
+                  <span className={`text-[11px] flex items-center gap-1 mt-0.5 ${urlVerified ? 'text-emerald-600' : 'text-neutral-400'}`}>
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span>{urlVerified ? 'Verified CDN Link' : 'CDN Image Link Attached'}</span>
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleClear}
+                className="text-xs text-red-600 hover:text-red-800 px-2 py-1"
+              >
+                Remove
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODE 2: LOCAL FILE UPLOAD */}
       {mode === 'file' && (
-        <div>
+        <div className="space-y-2">
           {isLocalFileActive ? (
             /* Selected File Card View */
             <div className="p-3.5 bg-white border border-neutral-200 rounded-xl shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -313,8 +419,8 @@ export default function ImageFileInput({
                     <span className="font-semibold text-xs text-neutral-900 truncate block">
                       {fileMeta?.name || 'Local image file ready'}
                     </span>
-                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Local
+                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-50 text-amber-700 border border-amber-200">
+                      Base64 Local
                     </span>
                   </div>
                   <p className="text-[11px] text-neutral-500 mt-0.5">
@@ -376,7 +482,6 @@ export default function ImageFileInput({
                 <div className="flex flex-col items-center justify-center py-2 text-neutral-600">
                   <RefreshCw className="w-6 h-6 animate-spin text-neutral-900 mb-2" />
                   <span className="text-xs font-medium">Optimizing &amp; preparing image...</span>
-                  <span className="text-[11px] text-neutral-400 mt-0.5">Compressing for lightning-fast loads</span>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center">
@@ -397,54 +502,14 @@ export default function ImageFileInput({
               )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* MODE 2: DIRECT IMAGE URL */}
-      {mode === 'url' && (
-        <div className="space-y-2">
-          <div className="relative">
-            <input
-              type="text"
-              value={isDataUrl ? '' : value}
-              onChange={(e) => {
-                setErrorMessage('');
-                onChange(e.target.value);
-              }}
-              placeholder="https://images.unsplash.com/... or any direct public image URL"
-              className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
-            />
-            {value && !isDataUrl && (
-              <button
-                type="button"
-                onClick={handleClear}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700"
-                title="Clear URL"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+          {/* Cloudflare limit tip */}
+          <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl text-[11px] text-amber-800 flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+            <span>
+              <strong>Performance Tip:</strong> For Cloudflare Pages, uploading images to an external CDN (Cloudinary, Imgur, ImageKit, etc.) and using the <strong>3rd Party CDN Link</strong> tab is highly recommended. It keeps your database lightweight, preserves Cloudflare bandwidth, and prevents GitHub push size limit errors.
+            </span>
           </div>
-
-          {/* Live Preview for URL */}
-          {value && !isDataUrl && (
-            <div className="p-2.5 bg-white border border-neutral-200 rounded-xl inline-flex items-center gap-3">
-              <img
-                src={value}
-                alt="URL Preview"
-                onError={() => setErrorMessage('The image URL could not be loaded. Please ensure it is a direct public image link.')}
-                className="h-16 w-16 rounded-lg object-contain bg-neutral-100 border border-neutral-200"
-              />
-              <div className="text-xs">
-                <span className="font-medium text-neutral-800 block truncate max-w-xs">
-                  {value}
-                </span>
-                <span className="text-[11px] text-emerald-600 flex items-center gap-1 mt-0.5">
-                  <CheckCircle2 className="w-3 h-3" /> Direct URL Link
-                </span>
-              </div>
-            </div>
-          )}
         </div>
       )}
 

@@ -1,23 +1,9 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import { AudioTrack } from '@/types';
-import { getServerDb } from '@/lib/serverDb';
-
-const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
+import { getServerDb, writeServerDb } from '@/lib/serverDb';
 
 function readDb() {
   return getServerDb();
-}
-
-function writeDb(data: any) {
-  try {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
-    return true;
-  } catch (err) {
-    console.error('Error writing to db.json:', err);
-    return false;
-  }
 }
 
 export async function GET() {
@@ -35,7 +21,7 @@ export async function POST(req: Request) {
     }
 
     if (!url || !url.trim()) {
-      return NextResponse.json({ error: 'Audio URL or local path (/music/...) is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Audio URL or direct link is required' }, { status: 400 });
     }
 
     const newTrack: AudioTrack = {
@@ -47,12 +33,21 @@ export async function POST(req: Request) {
       dateAdded: new Date().toISOString().split('T')[0],
     };
 
-    const db = readDb();
-    if (!db.audioTracks) db.audioTracks = [];
-    db.audioTracks.push(newTrack);
-    writeDb(db);
+    const syncRes = await writeServerDb((currentDb: any) => {
+      currentDb.audioTracks = currentDb.audioTracks || [];
+      currentDb.audioTracks.unshift(newTrack);
+      return currentDb;
+    }, `feat: add audio track [${newTrack.title}] via Mobile Admin`);
 
-    return NextResponse.json({ success: true, track: newTrack }, { status: 201 });
+    const isSynced = Boolean(syncRes.githubResult?.success);
+    const githubError = syncRes.githubResult?.error;
+
+    return NextResponse.json({
+      success: true,
+      track: newTrack,
+      syncedToGitHub: isSynced,
+      githubError: isSynced ? undefined : githubError,
+    }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
@@ -64,16 +59,25 @@ export async function DELETE(req: Request) {
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ error: 'Audio Track ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Track ID is required' }, { status: 400 });
     }
 
-    const db = readDb();
-    if (db.audioTracks) {
-      db.audioTracks = db.audioTracks.filter((t: AudioTrack) => t.id !== id);
-      writeDb(db);
-    }
+    const syncRes = await writeServerDb((currentDb: any) => {
+      if (currentDb.audioTracks) {
+        currentDb.audioTracks = currentDb.audioTracks.filter((t: AudioTrack) => t.id !== id);
+      }
+      return currentDb;
+    }, `feat: delete audio track [${id}] via Mobile Admin`);
 
-    return NextResponse.json({ success: true, message: 'Audio track deleted successfully' });
+    const isSynced = Boolean(syncRes.githubResult?.success);
+    const githubError = syncRes.githubResult?.error;
+
+    return NextResponse.json({
+      success: true,
+      message: 'Audio track deleted',
+      syncedToGitHub: isSynced,
+      githubError: isSynced ? undefined : githubError,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }

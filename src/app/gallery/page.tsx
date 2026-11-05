@@ -20,6 +20,7 @@ export default function GalleryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [failedGalleryIds, setFailedGalleryIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     async function load() {
@@ -57,6 +58,9 @@ export default function GalleryPage() {
 
   const filteredImages = useMemo(() => {
     return gallery.filter((img) => {
+      if (failedGalleryIds.has(img.id)) {
+        return false;
+      }
       if (activeCategory !== 'all' && img.category !== activeCategory) {
         return false;
       }
@@ -101,7 +105,7 @@ export default function GalleryPage() {
         </p>
 
         <div className="mt-6 flex">
-          <Link href="/admin" className="btn-dark !py-2 !px-4 !text-xs">
+          <Link href="/admin" prefetch={false} className="btn-dark !py-2 !px-4 !text-xs">
             <PlusCircle className="w-3.5 h-3.5 text-[#c6ff33]" />
             <span>Upload Image Direct URL</span>
           </Link>
@@ -168,6 +172,9 @@ export default function GalleryPage() {
                   alt={image.title}
                   className="w-full h-full object-cover transform group-hover:scale-106 transition-transform duration-500"
                   loading="lazy"
+                  onError={() => {
+                    setFailedGalleryIds(prev => new Set(prev).add(image.id));
+                  }}
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <div className="p-2 sm:p-3 rounded-full bg-[#c6ff33] text-black shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
@@ -205,7 +212,7 @@ export default function GalleryPage() {
           <p className="text-xs text-white/50 mt-1 mb-5">
             You can upload new images using direct URLs from the backend system.
           </p>
-          <Link href="/admin" className="btn-lime !py-2 !px-4">
+          <Link href="/admin" prefetch={false} className="btn-lime !py-2 !px-4">
             <PlusCircle className="w-4 h-4" />
             <span>Upload Image Direct URL</span>
           </Link>

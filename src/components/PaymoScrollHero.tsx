@@ -180,11 +180,11 @@ export default function PaymoScrollHero() {
                   Dedicated to <strong className="text-white font-semibold">Hazrat Sufi Abu Anees Muhammad Barkat Ali (رحمۃ اللہ علیہ)</strong>. The timeless master of perpetual Zikr, selflessness, and unconditional service to humanity.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center gap-3">
-                  <Link href="/makalat" className="btn-lime">
+                  <Link href="/makalat" prefetch={false} className="btn-lime">
                     <span>Explore Wisdom Feeds</span>
                     <ArrowRight className="w-4 h-4" />
                   </Link>
-                  <Link href="/about" className="btn-dark">
+                  <Link href="/about" prefetch={false} className="btn-dark">
                     <span>Life & Legacy Chronicle</span>
                   </Link>
                 </div>
@@ -202,7 +202,7 @@ export default function PaymoScrollHero() {
                   30 comprehensive volumes penned without commercial gain. Addressed affectionately with <span className="font-urdu text-[#c6ff33] text-xl font-bold">”اے دوست!“</span> (&ldquo;O friend!&rdquo;), touching every dimension of faith, morals, and spiritual elevation.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center gap-3">
-                  <Link href="/makalat" className="btn-lime">
+                  <Link href="/makalat" prefetch={false} className="btn-lime">
                     <span>Read All 30 Volumes</span>
                     <ArrowRight className="w-4 h-4" />
                   </Link>
@@ -225,11 +225,11 @@ export default function PaymoScrollHero() {
                   Over half a million cataract surgeries performed free of charge. High-grade lenses, post-op care, meals, and lodging provided without taking a single rupee in donations.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center gap-3">
-                  <Link href="/about" className="btn-lime">
+                  <Link href="/about" prefetch={false} className="btn-lime">
                     <span>Read The Hospital Story</span>
                     <ArrowRight className="w-4 h-4" />
                   </Link>
-                  <Link href="/gallery" className="btn-dark">
+                  <Link href="/gallery" prefetch={false} className="btn-dark">
                     <span>View Archival Photos</span>
                   </Link>
                 </div>
@@ -348,6 +348,7 @@ export default function PaymoScrollHero() {
 
                       <Link 
                         href="/makalat"
+                        prefetch={false}
                         className="flex flex-col items-center gap-1 text-[10px] text-white/80 hover:text-[#c6ff33]"
                       >
                         <div className="w-8 h-8 rounded-full bg-[#c6ff33] flex items-center justify-center text-black">

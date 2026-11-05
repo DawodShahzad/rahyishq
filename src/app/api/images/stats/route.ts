@@ -11,11 +11,18 @@ export async function GET(req: Request) {
 
   const stats = await getImageStat(id);
 
-  return NextResponse.json({
-    id,
-    views: stats.views,
-    downloads: stats.downloads,
-  });
+  return NextResponse.json(
+    {
+      id,
+      views: stats.views,
+      downloads: stats.downloads,
+    },
+    {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      },
+    }
+  );
 }
 
 export async function POST(req: Request) {

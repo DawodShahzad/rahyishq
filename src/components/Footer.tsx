@@ -38,7 +38,7 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           {/* Left: Brand Logo & Origin Tag */}
           <div className="space-y-2">
-            <Link href="/" className="inline-block group">
+            <Link href="/" prefetch={false} className="inline-block group">
               {settings.logoUrl ? (
                 <img
                   src={settings.logoUrl}

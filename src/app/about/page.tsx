@@ -226,10 +226,10 @@ export default function AboutPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/makalat" className="btn-lime">
+          <Link href="/makalat" prefetch={false} className="btn-lime">
             <span>Read Makalat</span>
           </Link>
-          <Link href="/gallery" className="btn-dark">
+          <Link href="/gallery" prefetch={false} className="btn-dark">
             <span>Open Gallery</span>
           </Link>
         </div>

@@ -1,31 +1,9 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import { StreamItem } from '@/types';
-import { syncDbToGitHub, isGitHubSyncConfigured } from '@/lib/githubSync';
-import { getServerDb } from '@/lib/serverDb';
-
-const dbPath = path.join(process.cwd(), 'src', 'data', 'db.json');
+import { getServerDb, writeServerDb } from '@/lib/serverDb';
 
 function readDb() {
   return getServerDb();
-}
-
-async function writeDb(data: any, commitMessage = 'Update streams') {
-  let localWritten = false;
-  try {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
-    localWritten = true;
-  } catch (err) {
-    console.warn('[Local DB] Streams write skipped or read-only (normal in serverless/Vercel):', err);
-  }
-
-  let githubResult: any = null;
-  if (isGitHubSyncConfigured()) {
-    githubResult = await syncDbToGitHub(data, commitMessage);
-  }
-
-  return { localWritten, githubResult };
 }
 
 export async function GET() {
@@ -49,19 +27,24 @@ export async function POST(req: Request) {
       id: `stream-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       title: trimmedTitle,
       slug,
-      description: description ? description.trim() : '',
-      createdAt: new Date().toISOString().split('T')[0],
+      description: description ? description.trim() : undefined,
+      createdAt: new Date().toISOString(),
     };
 
-    const db = readDb();
-    if (!db.streams) db.streams = [];
-    db.streams.push(newStream);
-    const syncRes = await writeDb(db, `feat: add stream [${newStream.title}] via Mobile Admin`);
+    const syncRes = await writeServerDb((currentDb: any) => {
+      currentDb.streams = currentDb.streams || [];
+      currentDb.streams.push(newStream);
+      return currentDb;
+    }, `feat: add stream [${newStream.title}] via Mobile Admin`);
 
-    return NextResponse.json({ 
-      success: true, 
+    const isSynced = Boolean(syncRes.githubResult?.success);
+    const githubError = syncRes.githubResult?.error;
+
+    return NextResponse.json({
+      success: true,
       stream: newStream,
-      syncedToGitHub: Boolean(syncRes.githubResult?.success),
+      syncedToGitHub: isSynced,
+      githubError: isSynced ? undefined : githubError,
     }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
@@ -77,18 +60,22 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Stream ID is required' }, { status: 400 });
     }
 
-    const db = readDb();
-    if (db.streams) {
-      db.streams = db.streams.filter((s: StreamItem) => s.id !== id);
-      const syncRes = await writeDb(db, `feat: delete stream [${id}] via Mobile Admin`);
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Stream deleted successfully',
-        syncedToGitHub: Boolean(syncRes.githubResult?.success),
-      });
-    }
+    const syncRes = await writeServerDb((currentDb: any) => {
+      if (currentDb.streams) {
+        currentDb.streams = currentDb.streams.filter((s: StreamItem) => s.id !== id);
+      }
+      return currentDb;
+    }, `feat: delete stream [${id}] via Mobile Admin`);
 
-    return NextResponse.json({ success: true, message: 'Stream deleted successfully' });
+    const isSynced = Boolean(syncRes.githubResult?.success);
+    const githubError = syncRes.githubResult?.error;
+
+    return NextResponse.json({
+      success: true,
+      message: 'Stream deleted',
+      syncedToGitHub: isSynced,
+      githubError: isSynced ? undefined : githubError,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }

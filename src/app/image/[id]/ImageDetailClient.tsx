@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Copy, Check, Share2, Download, Eye } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Share2, Download, Eye, AlertCircle } from 'lucide-react';
 import { FeedImage, StreamItem } from '@/types';
 
 interface ImageDetailClientProps {
@@ -17,13 +17,35 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
   const [shareUrl, setShareUrl] = useState('');
   const [views, setViews] = useState<number>(image.views || 0);
   const [downloads, setDownloads] = useState<number>(image.downloads || 0);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setShareUrl(window.location.href);
 
-      // Track view: increment view once per session, or fetch latest count
       const sessionKey = `darulehsan_viewed_${image.id}`;
+      const localStatsKey = `darulehsan_stats_${image.id}`;
+
+      // 1. Read cached stats from localStorage if higher than initial
+      let currentViews = image.views || 0;
+      let currentDownloads = image.downloads || 0;
+      try {
+        const stored = localStorage.getItem(localStatsKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (typeof parsed.views === 'number' && parsed.views > currentViews) {
+            currentViews = parsed.views;
+          }
+          if (typeof parsed.downloads === 'number' && parsed.downloads > currentDownloads) {
+            currentDownloads = parsed.downloads;
+          }
+        }
+      } catch {}
+
+      setViews(currentViews);
+      setDownloads(currentDownloads);
+
+      // 2. Track view: increment view once per session
       let alreadyViewed = false;
       try {
         alreadyViewed = Boolean(sessionStorage.getItem(sessionKey));
@@ -34,6 +56,13 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
           sessionStorage.setItem(sessionKey, 'true');
         } catch {}
 
+        // Optimistic increment
+        const nextViews = currentViews + 1;
+        setViews(nextViews);
+        try {
+          localStorage.setItem(localStatsKey, JSON.stringify({ views: nextViews, downloads: currentDownloads }));
+        } catch {}
+
         fetch('/api/images/stats', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -41,8 +70,16 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
         })
           .then((res) => res.json())
           .then((data) => {
-            if (typeof data.views === 'number') setViews(data.views);
-            if (typeof data.downloads === 'number') setDownloads(data.downloads);
+            if (typeof data.views === 'number') {
+              const bestViews = Math.max(data.views, nextViews);
+              setViews(bestViews);
+              try {
+                localStorage.setItem(localStatsKey, JSON.stringify({ views: bestViews, downloads: typeof data.downloads === 'number' ? Math.max(currentDownloads, data.downloads) : currentDownloads }));
+              } catch {}
+            }
+            if (typeof data.downloads === 'number' && data.downloads > currentDownloads) {
+              setDownloads(data.downloads);
+            }
           })
           .catch(() => {});
       } else {
@@ -50,13 +87,17 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
         fetch(`/api/images/stats?id=${encodeURIComponent(image.id)}`)
           .then((res) => res.json())
           .then((data) => {
-            if (typeof data.views === 'number') setViews(data.views);
-            if (typeof data.downloads === 'number') setDownloads(data.downloads);
+            if (typeof data.views === 'number' && data.views > currentViews) {
+              setViews(data.views);
+            }
+            if (typeof data.downloads === 'number' && data.downloads > currentDownloads) {
+              setDownloads(data.downloads);
+            }
           })
           .catch(() => {});
       }
     }
-  }, [image.id]);
+  }, [image.id, image.views, image.downloads]);
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
@@ -70,7 +111,15 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
     try {
       setDownloading(true);
 
-      // Record download stat immediately
+      // Optimistically increment download count
+      const localStatsKey = `darulehsan_stats_${image.id}`;
+      const nextDownloads = downloads + 1;
+      setDownloads(nextDownloads);
+      try {
+        localStorage.setItem(localStatsKey, JSON.stringify({ views, downloads: nextDownloads }));
+      } catch {}
+
+      // Record download stat on server
       fetch('/api/images/stats', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,32 +127,44 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
       })
         .then((res) => res.json())
         .then((data) => {
-          if (typeof data.downloads === 'number') setDownloads(data.downloads);
+          if (typeof data.downloads === 'number' && data.downloads > nextDownloads) {
+            setDownloads(data.downloads);
+          }
         })
-        .catch(() => {
-          setDownloads((prev) => prev + 1);
-        });
+        .catch(() => {});
 
-      const res = await fetch(image.url);
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      const safeName = (image.title || image.referenceNumber || image.id || 'image')
-        .trim()
-        .replace(/[^a-zA-Z0-9\u0600-\u06FF_-]/g, '_');
-      const ext = image.url.includes('.png') ? 'png' : image.url.includes('.webp') ? 'webp' : 'jpg';
-      a.download = `${safeName}.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
-    } catch {
+      // For 3rd-party CDN images, fetch as blob if CORS permits
+      try {
+        const res = await fetch(image.url);
+        if (res.ok) {
+          const blob = await res.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          const safeName = (image.title || image.referenceNumber || image.id || 'image')
+            .trim()
+            .replace(/[^a-zA-Z0-9\u0600-\u06FF_-]/g, '_');
+          const ext = image.url.includes('.png') ? 'png' : image.url.includes('.webp') ? 'webp' : 'jpg';
+          a.download = `${safeName}.${ext}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+          return;
+        }
+      } catch {
+        // Cross-Origin fetch blocked by 3rd-party CDN
+      }
+
+      // Fallback: Open in new tab or trigger direct download link
       const a = document.createElement('a');
       a.href = image.url;
       a.target = '_blank';
+      a.rel = 'noopener noreferrer';
       a.download = `${image.title || 'image'}.jpg`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
     } finally {
       setDownloading(false);
     }
@@ -138,6 +199,7 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
         <div className="flex items-center justify-between pb-6 mb-8 border-b border-neutral-100">
           <Link
             href="/"
+            prefetch={false}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-600 hover:text-black transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -185,13 +247,22 @@ export default function ImageDetailClient({ image, platformName }: ImageDetailCl
           </div>
         </div>
 
-        {/* Clean Big Image Container (No reference number overlay, No open in full button) */}
-        <div className="w-full bg-neutral-50 rounded-2xl sm:rounded-3xl border-0 overflow-hidden shadow-xs mb-8 flex items-center justify-center p-2 sm:p-4">
-          <img
-            src={image.url}
-            alt={image.title}
-            className="max-h-[78vh] w-auto max-w-full object-contain rounded-xl sm:rounded-2xl"
-          />
+        {/* Big Image Container with Error Fallback */}
+        <div className="w-full bg-neutral-50 rounded-2xl sm:rounded-3xl border-0 overflow-hidden shadow-xs mb-8 flex items-center justify-center p-2 sm:p-4 min-h-[300px]">
+          {imageError ? (
+            <div className="py-16 text-center text-neutral-500 text-sm flex flex-col items-center">
+              <AlertCircle className="w-8 h-8 text-neutral-400 mb-2" />
+              <p className="font-medium">Image could not be loaded from source CDN.</p>
+              <p className="text-xs text-neutral-400 mt-1">The link may have expired or is blocked.</p>
+            </div>
+          ) : (
+            <img
+              src={image.url}
+              alt={image.title}
+              onError={() => setImageError(true)}
+              className="max-h-[78vh] w-auto max-w-full object-contain rounded-xl sm:rounded-2xl"
+            />
+          )}
         </div>
 
         {/* Essential Content: Reference number & Date of Archival, Views, Downloads, Title, Description */}

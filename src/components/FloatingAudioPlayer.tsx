@@ -554,7 +554,7 @@ export default function FloatingAudioPlayer() {
         }}
         onPause={() => setIsPlaying(false)}
         playsInline
-        preload="auto"
+        preload="none"
         className="hidden"
       />
 
@@ -570,7 +570,7 @@ export default function FloatingAudioPlayer() {
         }}
         onPause={() => setIsHeroPlaying(false)}
         playsInline
-        preload="auto"
+        preload="none"
         className="hidden"
       />
 

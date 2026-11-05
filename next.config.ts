@@ -27,6 +27,39 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  async headers() {
+    return [
+      // Static JS/CSS bundles — content-hashed filenames, safe to cache forever
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      // Public directory assets (fonts, icons, images, etc.)
+      {
+        source: "/favicon/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
+      {
+        source: "/music/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     return [
       {

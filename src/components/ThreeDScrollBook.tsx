@@ -132,6 +132,7 @@ export default function ThreeDScrollBook() {
               <div className="pt-4 mt-6 border-t border-amber-500/20 flex items-center justify-between">
                 <Link
                   href="/makalat"
+                  prefetch={false}
                   className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-amber-300 hover:text-amber-100 transition-colors group"
                 >
                   <span>Explore All Feeds</span>

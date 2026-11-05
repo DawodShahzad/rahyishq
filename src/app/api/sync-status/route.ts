@@ -10,5 +10,6 @@ export async function GET() {
     owner: config.owner,
     repo: config.repo,
     branch: config.branch,
+    tokenConfigured: Boolean(config.token),
   });
 }
