@@ -39,18 +39,37 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Public directory assets (fonts, icons, images, etc.)
+      // Public directory assets (fonts, icons, images, media, etc.)
       {
         source: "/favicon/:path*",
         headers: [
           {
             key: "Cache-Control",
-            value: "public, max-age=86400, stale-while-revalidate=604800",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/media/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },
       {
         source: "/music/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      // Root SVGs, icons, and static images
+      {
+        source: "/:file*.(svg|ico|png|jpg|jpeg|webp|avif|woff|woff2)",
         headers: [
           {
             key: "Cache-Control",
