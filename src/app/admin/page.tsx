@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { 
   Plus, 
@@ -38,11 +38,21 @@ import {
   Activity,
   Download,
   TrendingUp,
-  Calendar
+  Calendar,
+  Pencil,
+  Save,
+  RotateCcw,
+  FolderPlus,
+  FolderInput,
+  Search,
+  CheckSquare,
+  Square
 } from 'lucide-react';
-import { FeedImage, StreamItem, AudioTrack, HeroImage } from '@/types';
+import { FeedImage, StreamItem, AudioTrack, HeroImage, SiteSettings } from '@/types';
 import { ENABLE_ADMIN_ACCESS, ADMIN_PASSCODE } from '@/config/adminAccess';
 import ImageFileInput from '@/components/ImageFileInput';
+import BulkUploadPanel from '@/components/admin/BulkUploadPanel';
+import EditImageModal from '@/components/admin/EditImageModal';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -92,6 +102,27 @@ export default function AdminPage() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ isConfigured: boolean; owner?: string; repo?: string; branch?: string } | null>(null);
 
+  // Staged Batch Save State (1-click Save All Changes -> 1 GitHub push)
+  const [savedSnapshot, setSavedSnapshot] = useState<{
+    images: FeedImage[];
+    streams: StreamItem[];
+    heroImages: HeroImage[];
+    audioTracks: AudioTrack[];
+    settings: SiteSettings;
+  } | null>(null);
+  const [isSavingAll, setIsSavingAll] = useState<boolean>(false);
+  const [localPreviewMap, setLocalPreviewMap] = useState<Record<string, string>>({});
+
+  // Images Tab: Upload mode, Multi-select, Bulk Folder & Edit Modal
+  const [imageAddMode, setImageAddMode] = useState<'single' | 'bulk'>('single');
+  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
+  const [bulkTargetFolderId, setBulkTargetFolderId] = useState<string>('');
+  const [quickFolderName, setQuickFolderName] = useState<string>('');
+  const [showQuickFolderInput, setShowQuickFolderInput] = useState<boolean>(false);
+  const [editingImage, setEditingImage] = useState<FeedImage | null>(null);
+  const [registrySearch, setRegistrySearch] = useState<string>('');
+  const [registryFolderFilter, setRegistryFolderFilter] = useState<string>('all');
+
   // Form states: New Image
   const [imageUrl, setImageUrl] = useState('');
   const [imageTitle, setImageTitle] = useState('');
@@ -123,6 +154,151 @@ export default function AdminPage() {
   const [audioArtist, setAudioArtist] = useState('');
   const [isSubmittingAudio, setIsSubmittingAudio] = useState(false);
 
+  // Build current settings object from form inputs
+  const currentSettingsObj: SiteSettings = useMemo(
+    () => ({
+      platformName: platformNameInput,
+      logoUrl: logoInputUrl,
+      hideSiteName: hideSiteNameInput,
+      musicIconUrl: musicIconInputUrl,
+      waveColor: waveColorInput,
+      homeBgImageUrl: homeBgInputUrl,
+      navbarColor: navbarColorInput,
+      navbarOpacity: Number(navbarOpacityInput),
+      navbarBlur: Number(navbarBlurInput),
+      facebookUrl: facebookInputUrl,
+      whatsappUrl: whatsappInputUrl,
+      instagramUrl: instagramInputUrl,
+      tiktokUrl: tiktokInputUrl,
+      footerEnglishText: footerEnglishInput,
+      footerArabicText: footerArabicInput,
+    }),
+    [
+      platformNameInput,
+      logoInputUrl,
+      hideSiteNameInput,
+      musicIconInputUrl,
+      waveColorInput,
+      homeBgInputUrl,
+      navbarColorInput,
+      navbarOpacityInput,
+      navbarBlurInput,
+      facebookInputUrl,
+      whatsappInputUrl,
+      instagramInputUrl,
+      tiktokInputUrl,
+      footerEnglishInput,
+      footerArabicInput,
+    ]
+  );
+
+  // Track pending unsaved changes across the entire Admin Panel
+  const pendingChanges = useMemo(() => {
+    if (!savedSnapshot) {
+      return {
+        addedImageIds: new Set<string>(),
+        editedImageIds: new Set<string>(),
+        deletedImagesCount: 0,
+        streamsChanged: false,
+        heroChanged: false,
+        audioChanged: false,
+        settingsChanged: false,
+        totalChanges: 0,
+        hasUnsavedChanges: false,
+        summaryParts: [] as string[],
+      };
+    }
+
+    const savedImgMap = new Map(savedSnapshot.images.map((img) => [img.id, img]));
+    const currentImgIds = new Set(images.map((img) => img.id));
+    const addedImageIds = new Set<string>();
+    const editedImageIds = new Set<string>();
+
+    for (const img of images) {
+      const prev = savedImgMap.get(img.id);
+      if (!prev) {
+        addedImageIds.add(img.id);
+      } else if (JSON.stringify(prev) !== JSON.stringify(img)) {
+        editedImageIds.add(img.id);
+      }
+    }
+
+    let deletedImagesCount = 0;
+    for (const prev of savedSnapshot.images) {
+      if (!currentImgIds.has(prev.id)) deletedImagesCount++;
+    }
+
+    const streamsChanged = JSON.stringify(savedSnapshot.streams) !== JSON.stringify(streams);
+    const heroChanged = JSON.stringify(savedSnapshot.heroImages) !== JSON.stringify(heroImages);
+    const audioChanged = JSON.stringify(savedSnapshot.audioTracks) !== JSON.stringify(audioTracks);
+    const settingsChanged = JSON.stringify(savedSnapshot.settings) !== JSON.stringify(currentSettingsObj);
+
+    const summaryParts: string[] = [];
+    if (addedImageIds.size > 0) summaryParts.push(`${addedImageIds.size} new image${addedImageIds.size > 1 ? 's' : ''}`);
+    if (editedImageIds.size > 0) summaryParts.push(`${editedImageIds.size} edited`);
+    if (deletedImagesCount > 0) summaryParts.push(`${deletedImagesCount} deleted`);
+    if (streamsChanged) summaryParts.push('folders updated');
+    if (heroChanged) summaryParts.push('hero updated');
+    if (audioChanged) summaryParts.push('audio updated');
+    if (settingsChanged) summaryParts.push('appearance updated');
+
+    const totalChanges =
+      addedImageIds.size +
+      editedImageIds.size +
+      deletedImagesCount +
+      (streamsChanged ? 1 : 0) +
+      (heroChanged ? 1 : 0) +
+      (audioChanged ? 1 : 0) +
+      (settingsChanged ? 1 : 0);
+
+    return {
+      addedImageIds,
+      editedImageIds,
+      deletedImagesCount,
+      streamsChanged,
+      heroChanged,
+      audioChanged,
+      settingsChanged,
+      totalChanges,
+      hasUnsavedChanges: totalChanges > 0,
+      summaryParts,
+    };
+  }, [savedSnapshot, images, streams, heroImages, audioTracks, currentSettingsObj]);
+
+  // Filtered registry images for search & folder filter
+  const filteredRegistryImages = useMemo(() => {
+    let list = images;
+    if (registryFolderFilter === '__none__') {
+      list = list.filter((img) => !img.streamIds || img.streamIds.length === 0);
+    } else if (registryFolderFilter !== 'all') {
+      list = list.filter((img) => img.streamIds?.includes(registryFolderFilter));
+    }
+
+    const q = registrySearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (img) =>
+          img.title?.toLowerCase().includes(q) ||
+          img.referenceNumber?.toLowerCase().includes(q) ||
+          img.description?.toLowerCase().includes(q) ||
+          img.tags?.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [images, registryFolderFilter, registrySearch]);
+
+  // Warn before leaving if there are unsaved staged changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (pendingChanges.hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [pendingChanges.hasUnsavedChanges]);
+
   // Check initial authentication
   useEffect(() => {
     const savedAuth = sessionStorage.getItem('darulehsan_admin_auth');
@@ -131,44 +307,86 @@ export default function AdminPage() {
     }
   }, []);
 
+  const applySettingsToInputs = (s: SiteSettings) => {
+    const resolved: SiteSettings = {
+      platformName: s.platformName !== undefined ? s.platformName : 'Rahy Ishq',
+      logoUrl: s.logoUrl || '',
+      hideSiteName: Boolean(s.hideSiteName),
+      musicIconUrl: s.musicIconUrl || '',
+      waveColor: s.waveColor || '#84cc16',
+      homeBgImageUrl: s.homeBgImageUrl || '',
+      navbarColor: s.navbarColor || '#ffffff',
+      navbarOpacity: s.navbarOpacity !== undefined ? s.navbarOpacity : 75,
+      navbarBlur: s.navbarBlur !== undefined ? s.navbarBlur : 12,
+      facebookUrl: s.facebookUrl || 'https://facebook.com',
+      whatsappUrl: s.whatsappUrl || 'https://wa.me',
+      instagramUrl: s.instagramUrl || 'https://instagram.com',
+      tiktokUrl: s.tiktokUrl || 'https://tiktok.com',
+      footerEnglishText:
+        s.footerEnglishText !== undefined
+          ? s.footerEnglishText
+          : 'Preserving the photographic, calligraphic, and manuscript heritage of Hazrat Sufi Abu Anees Muhammad Barkat Ali (رحمۃ اللہ علیہ).',
+      footerArabicText:
+        s.footerArabicText !== undefined
+          ? s.footerArabicText
+          : 'خدمتِ خلق • ذکرِ الٰہی • نشرِ قرآن مجید',
+    };
+
+    setPlatformNameInput(resolved.platformName || 'Rahy Ishq');
+    setLogoInputUrl(resolved.logoUrl || '');
+    setHideSiteNameInput(Boolean(resolved.hideSiteName));
+    setMusicIconInputUrl(resolved.musicIconUrl || '');
+    setWaveColorInput(resolved.waveColor || '#84cc16');
+    setHomeBgInputUrl(resolved.homeBgImageUrl || '');
+    setNavbarColorInput(resolved.navbarColor || '#ffffff');
+    setNavbarOpacityInput(resolved.navbarOpacity ?? 75);
+    setNavbarBlurInput(resolved.navbarBlur ?? 12);
+    setFacebookInputUrl(resolved.facebookUrl || 'https://facebook.com');
+    setWhatsappInputUrl(resolved.whatsappUrl || 'https://wa.me');
+    setInstagramInputUrl(resolved.instagramUrl || 'https://instagram.com');
+    setTiktokInputUrl(resolved.tiktokUrl || 'https://tiktok.com');
+    setFooterEnglishInput(resolved.footerEnglishText || '');
+    setFooterArabicInput(resolved.footerArabicText || '');
+    return resolved;
+  };
+
   // Fetch all admin data
   const fetchData = async () => {
     setIsLoading(true);
     try {
       const [imagesRes, streamsRes, audioRes, heroRes, settingsRes, syncRes, analyticsRes] = await Promise.all([
-        fetch('/api/images?admin=true'),
-        fetch('/api/streams'),
-        fetch('/api/audio'),
-        fetch('/api/hero-images'),
-        fetch('/api/settings'),
-        fetch('/api/sync-status'),
-        fetch('/api/analytics'),
+        fetch('/api/images?admin=true', { cache: 'no-store' }),
+        fetch('/api/streams', { cache: 'no-store' }),
+        fetch('/api/audio', { cache: 'no-store' }),
+        fetch('/api/hero-images', { cache: 'no-store' }),
+        fetch('/api/settings', { cache: 'no-store' }),
+        fetch('/api/sync-status', { cache: 'no-store' }),
+        fetch('/api/analytics', { cache: 'no-store' }),
       ]);
 
-      if (imagesRes.ok) setImages(await imagesRes.json());
-      if (streamsRes.ok) setStreams(await streamsRes.json());
-      if (audioRes.ok) setAudioTracks(await audioRes.json());
-      if (heroRes.ok) setHeroImages(await heroRes.json());
+      const loadedImages: FeedImage[] = imagesRes.ok ? await imagesRes.json() : [];
+      const loadedStreams: StreamItem[] = streamsRes.ok ? await streamsRes.json() : [];
+      const loadedAudio: AudioTrack[] = audioRes.ok ? await audioRes.json() : [];
+      const loadedHero: HeroImage[] = heroRes.ok ? await heroRes.json() : [];
       if (syncRes.ok) setSyncStatus(await syncRes.json());
       if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
-      if (settingsRes.ok) {
-        const s = await settingsRes.json();
-        if (s.platformName !== undefined) setPlatformNameInput(s.platformName);
-        setLogoInputUrl(s.logoUrl || '');
-        setHideSiteNameInput(Boolean(s.hideSiteName));
-        setMusicIconInputUrl(s.musicIconUrl || '');
-        setWaveColorInput(s.waveColor || '#84cc16');
-        setHomeBgInputUrl(s.homeBgImageUrl || '');
-        setNavbarColorInput(s.navbarColor || '#ffffff');
-        setNavbarOpacityInput(s.navbarOpacity !== undefined ? s.navbarOpacity : 75);
-        setNavbarBlurInput(s.navbarBlur !== undefined ? s.navbarBlur : 12);
-        setFacebookInputUrl(s.facebookUrl || 'https://facebook.com');
-        setWhatsappInputUrl(s.whatsappUrl || 'https://wa.me');
-        setInstagramInputUrl(s.instagramUrl || 'https://instagram.com');
-        setTiktokInputUrl(s.tiktokUrl || 'https://tiktok.com');
-        if (s.footerEnglishText !== undefined) setFooterEnglishInput(s.footerEnglishText);
-        if (s.footerArabicText !== undefined) setFooterArabicInput(s.footerArabicText);
-      }
+      const rawSettings: SiteSettings = settingsRes.ok ? await settingsRes.json() : {};
+      const resolvedSettings = applySettingsToInputs(rawSettings);
+
+      setImages(loadedImages);
+      setStreams(loadedStreams);
+      setAudioTracks(loadedAudio);
+      setHeroImages(loadedHero);
+      setSelectedImageIds([]);
+      setBulkTargetFolderId((prev) => prev || loadedStreams[0]?.id || '');
+
+      setSavedSnapshot({
+        images: structuredClone(loadedImages),
+        streams: structuredClone(loadedStreams),
+        heroImages: structuredClone(loadedHero),
+        audioTracks: structuredClone(loadedAudio),
+        settings: structuredClone(resolvedSettings),
+      });
     } catch (e) {
       console.error('Failed to load admin data:', e);
     } finally {
@@ -210,7 +428,85 @@ export default function AdminPage() {
 
   const showNotify = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
-    setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  // ONE-CLICK SAVE ALL CHANGES & PUSH db.json TO GITHUB
+  const handleSaveAllChanges = async () => {
+    setIsSavingAll(true);
+    setIsSavingLogo(true);
+    try {
+      const summary = pendingChanges.summaryParts.join(', ') || 'Sync all admin updates';
+      const res = await fetch('/api/admin/save-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          images,
+          streams,
+          heroImages,
+          audioTracks,
+          settings: currentSettingsObj,
+          commitMessage: `chore(admin): ${summary}`,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        showNotify('error', data?.error || 'Failed to save changes.');
+        return;
+      }
+
+      const nextImages: FeedImage[] = Array.isArray(data.images) ? data.images : images;
+      const nextHero: HeroImage[] = Array.isArray(data.heroImages) ? data.heroImages : heroImages;
+      const nextSettings: SiteSettings = data.settings ? applySettingsToInputs(data.settings) : currentSettingsObj;
+
+      setImages(nextImages);
+      setHeroImages(nextHero);
+      setSavedSnapshot({
+        images: structuredClone(nextImages),
+        streams: structuredClone(streams),
+        heroImages: structuredClone(nextHero),
+        audioTracks: structuredClone(audioTracks),
+        settings: structuredClone(nextSettings),
+      });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site-settings-updated'));
+      }
+
+      if (data.syncedToGitHub) {
+        const filesNote = data.uploadedFilesCount > 0 ? ` + ${data.uploadedFilesCount} image file(s)` : '';
+        showNotify(
+          'success',
+          `🚀 Saved & pushed db.json${filesNote} to GitHub in 1 single commit! Live site updates in ~45s.`
+        );
+      } else if (data.githubError) {
+        showNotify(
+          'error',
+          `⚠️ Saved locally, but GitHub push failed: ${data.githubError}`
+        );
+      } else {
+        showNotify('success', 'All changes saved locally to db.json!');
+      }
+    } catch (err: any) {
+      showNotify('error', err.message || 'Network error while pushing changes.');
+    } finally {
+      setIsSavingAll(false);
+      setIsSavingLogo(false);
+    }
+  };
+
+  // Discard unsaved staged changes
+  const handleDiscardChanges = () => {
+    if (!savedSnapshot) return;
+    if (!confirm('Discard all unsaved changes and revert to the last saved state?')) return;
+    setImages(structuredClone(savedSnapshot.images));
+    setStreams(structuredClone(savedSnapshot.streams));
+    setHeroImages(structuredClone(savedSnapshot.heroImages));
+    setAudioTracks(structuredClone(savedSnapshot.audioTracks));
+    applySettingsToInputs(savedSnapshot.settings);
+    setSelectedImageIds([]);
+    showNotify('success', 'Unsaved changes discarded.');
   };
 
   // Auto-generate reference number
@@ -221,83 +517,27 @@ export default function AdminPage() {
 
   // Handle Stream Selection Toggle
   const toggleStreamSelection = (streamId: string) => {
-    setSelectedStreams(prev => 
-      prev.includes(streamId) 
-        ? prev.filter(id => id !== streamId)
+    setSelectedStreams((prev) =>
+      prev.includes(streamId)
+        ? prev.filter((id) => id !== streamId)
         : [...prev, streamId]
     );
   };
 
-  // Submit Brand Logo & Appearance Settings
+  // Submit Brand Logo & Appearance Settings (triggers 1-button Save All)
   const handleSaveLogo = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSavingLogo(true);
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          platformName: platformNameInput,
-          logoUrl: logoInputUrl,
-          hideSiteName: hideSiteNameInput,
-          musicIconUrl: musicIconInputUrl,
-          waveColor: waveColorInput,
-          homeBgImageUrl: homeBgInputUrl,
-          navbarColor: navbarColorInput,
-          navbarOpacity: Number(navbarOpacityInput),
-          navbarBlur: Number(navbarBlurInput),
-          facebookUrl: facebookInputUrl,
-          whatsappUrl: whatsappInputUrl,
-          instagramUrl: instagramInputUrl,
-          tiktokUrl: tiktokInputUrl,
-          footerEnglishText: footerEnglishInput,
-          footerArabicText: footerArabicInput,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data?.syncedToGitHub) {
-          showNotify('success', '🚀 Saved & Auto-committed to GitHub! Live site will update in ~45s.');
-        } else if (data?.githubError) {
-          showNotify('error', `⚠️ GitHub Sync Warning: Settings saved locally, but GitHub push failed: ${data.githubError}`);
-        } else {
-          showNotify('success', 'Appearance, branding, navbar & sound wave settings saved successfully!');
-        }
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('site-settings-updated'));
-        }
-      } else {
-        showNotify('error', 'Failed to update settings.');
-      }
-    } catch {
-      showNotify('error', 'Error saving brand & appearance settings.');
-    } finally {
-      setIsSavingLogo(false);
-    }
+    await handleSaveAllChanges();
   };
 
-  // Clear Brand Logo
-  const handleClearLogo = async () => {
+  // Clear Brand Logo (staged)
+  const handleClearLogo = () => {
     setLogoInputUrl('');
-    setIsSavingLogo(true);
-    try {
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ logoUrl: '' }),
-      });
-      showNotify('success', 'Brand logo cleared.');
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('site-settings-updated'));
-      }
-    } finally {
-      setIsSavingLogo(false);
-    }
+    showNotify('success', 'Brand logo cleared in draft. Click "Save All Changes" to push.');
   };
 
-  // Submit Image with duplicate link detection (accepts after 3 warnings)
-  const handleAddImage = async (e: React.FormEvent) => {
+  // Stage Single Image locally (does NOT push individually to GitHub!)
+  const handleAddImage = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedUrl = imageUrl.trim();
     if (!trimmedUrl || !imageTitle.trim()) {
@@ -317,83 +557,207 @@ export default function AdminPage() {
         setDupWarningUrl(trimmedUrl);
         setDupWarningCount(nextCount);
         if (nextCount === 1) {
-          showNotify('error', '⚠️ Duplicate Link Warning (1 of 3): This image link already exists in your feed. Click "Publish Image to Stream" again to proceed.');
+          showNotify('error', '⚠️ Duplicate Link Warning (1 of 3): This image link already exists. Click again to proceed.');
         } else if (nextCount === 2) {
           showNotify('error', '⚠️ Duplicate Link Warning (2 of 3): This image link already exists. Click 1 more time to confirm.');
         } else if (nextCount === 3) {
-          showNotify('error', '⚠️ Duplicate Link Warning (3 of 3 - Final Warning): Click once more to force accept and publish this duplicate link.');
+          showNotify('error', '⚠️ Duplicate Link Warning (3 of 3 - Final Warning): Click once more to force accept.');
         }
         return;
       }
-      // If currentCount >= 3, 3 warnings have been acknowledged: accept link!
     }
 
     setIsSubmittingImage(true);
     try {
-      const res = await fetch('/api/images', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: trimmedUrl,
-          title: imageTitle,
-          referenceNumber: imageRefNumber.trim() || `REF-${Date.now().toString().slice(-4)}`,
-          adminNotes: imageAdminNotes,
-          tags: imageTags,
-          streamIds: selectedStreams,
-          description: imageDescription,
-          aspectRatio: imageAspectRatio,
-        }),
-      });
+      const processedTags = imageTags
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
 
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data?.syncedToGitHub) {
-          showNotify('success', '🚀 Published & Auto-committed to GitHub! Live site is updating now (~45s).');
-        } else if (data?.githubError) {
-          showNotify('error', `⚠️ GitHub Push Failed: ${data.githubError}`);
-        } else {
-          showNotify('success', linkAlreadyExists ? 'Duplicate image accepted after 3 warnings and published!' : 'Image successfully added to the stream!');
-        }
-        setImageUrl('');
-        setImageTitle('');
-        setImageRefNumber('');
-        setImageAdminNotes('');
-        setImageTags('');
-        setSelectedStreams([]);
-        setImageDescription('');
-        setImageAspectRatio('landscape');
-        setDupWarningCount(0);
-        setDupWarningUrl('');
-        fetchData();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        showNotify('error', data.error || data.githubError || 'Failed to add image.');
+      const id = `img-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      const newImage: FeedImage = {
+        id,
+        url: trimmedUrl,
+        title: imageTitle.trim(),
+        referenceNumber: imageRefNumber.trim() || `REF-${Date.now().toString().slice(-4)}`,
+        adminNotes: imageAdminNotes.trim() || undefined,
+        tags: processedTags,
+        streamIds: [...selectedStreams],
+        description: imageDescription.trim(),
+        dateAdded: new Date().toISOString().split('T')[0],
+        aspectRatio: imageAspectRatio,
+      };
+
+      if (trimmedUrl.startsWith('data:image/')) {
+        setLocalPreviewMap((prev) => ({ ...prev, [id]: trimmedUrl }));
       }
-    } catch (err: any) {
-      showNotify('error', err.message || 'Error creating image');
+
+      setImages((prev) => [newImage, ...prev]);
+      setImageUrl('');
+      setImageTitle('');
+      setImageRefNumber('');
+      setImageAdminNotes('');
+      setImageTags('');
+      setSelectedStreams([]);
+      setImageDescription('');
+      setImageAspectRatio('landscape');
+      setDupWarningCount(0);
+      setDupWarningUrl('');
+
+      showNotify(
+        'success',
+        'Image added to pending list! Upload more or click "Save All Changes" to push to GitHub in 1 commit.'
+      );
     } finally {
       setIsSubmittingImage(false);
     }
   };
 
-  // Delete Image
-  const handleDeleteImage = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this image?')) return;
-    try {
-      const res = await fetch(`/api/images?id=${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data?.syncedToGitHub) {
-          showNotify('success', '🚀 Image removed & Auto-committed to GitHub! Live site updating in ~45s.');
-        } else if (data?.githubError) {
-          showNotify('error', `⚠️ GitHub Push Failed: ${data.githubError}`);
-        } else {
-          showNotify('success', 'Image removed.');
-        }
-        setImages(prev => prev.filter(img => img.id !== id));
-      }
-    } catch {
-      showNotify('error', 'Failed to delete image.');
+  // Stage Bulk Images from BulkUploadPanel
+  const handleStageBulkImages = (newImages: FeedImage[], previewMap?: Record<string, string>) => {
+    if (previewMap && Object.keys(previewMap).length > 0) {
+      setLocalPreviewMap((prev) => ({ ...prev, ...previewMap }));
+    }
+    setImages((prev) => [...newImages, ...prev]);
+    showNotify(
+      'success',
+      `${newImages.length} image(s) staged! Click "Save All Changes & Push to GitHub" when ready.`
+    );
+  };
+
+  // Save Edited Image from EditImageModal (staged)
+  const handleSaveEditedImage = (updated: FeedImage, newPreviewDataUrl?: string) => {
+    if (newPreviewDataUrl) {
+      setLocalPreviewMap((prev) => ({ ...prev, [updated.id]: newPreviewDataUrl }));
+    }
+    setImages((prev) => prev.map((img) => (img.id === updated.id ? updated : img)));
+    setEditingImage(null);
+    showNotify('success', `Updated "${updated.title}" in pending list. Click "Save All Changes" to push.`);
+  };
+
+  // Delete Single Image (staged)
+  const handleDeleteImage = (id: string) => {
+    if (!confirm('Remove this image? (Will push to GitHub when you click Save All Changes)')) return;
+    setImages((prev) => prev.filter((img) => img.id !== id));
+    setSelectedImageIds((prev) => prev.filter((sid) => sid !== id));
+    showNotify('success', 'Image removed from pending list.');
+  };
+
+  // Multi-select helpers
+  const toggleImageSelected = (id: string) => {
+    setSelectedImageIds((prev) =>
+      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]
+    );
+  };
+
+  const allVisibleSelected =
+    filteredRegistryImages.length > 0 &&
+    filteredRegistryImages.every((img) => selectedImageIds.includes(img.id));
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      const visibleSet = new Set(filteredRegistryImages.map((img) => img.id));
+      setSelectedImageIds((prev) => prev.filter((id) => !visibleSet.has(id)));
+    } else {
+      const merged = new Set([...selectedImageIds, ...filteredRegistryImages.map((img) => img.id)]);
+      setSelectedImageIds(Array.from(merged));
+    }
+  };
+
+  // Bulk 1-Click Delete Selected Images (staged)
+  const handleBulkDeleteSelected = () => {
+    if (selectedImageIds.length === 0) return;
+    if (
+      !confirm(
+        `Delete ${selectedImageIds.length} selected image(s)? Changes won't push to GitHub until you click "Save All Changes".`
+      )
+    ) {
+      return;
+    }
+    const delSet = new Set(selectedImageIds);
+    setImages((prev) => prev.filter((img) => !delSet.has(img.id)));
+    setSelectedImageIds([]);
+    showNotify('success', `${delSet.size} image(s) deleted from pending list.`);
+  };
+
+  // Bulk 1-Click Add Selected Images to Folder / Stream (staged)
+  const handleBulkAddToFolder = (folderId?: string) => {
+    const targetId = folderId || bulkTargetFolderId;
+    if (selectedImageIds.length === 0) return;
+    if (!targetId) {
+      showNotify('error', 'Please choose a folder / stream first.');
+      return;
+    }
+
+    const folderObj = streams.find((s) => s.id === targetId);
+    const selSet = new Set(selectedImageIds);
+    setImages((prev) =>
+      prev.map((img) => {
+        if (!selSet.has(img.id)) return img;
+        const current = img.streamIds || [];
+        if (current.includes(targetId)) return img;
+        return { ...img, streamIds: [...current, targetId] };
+      })
+    );
+    showNotify(
+      'success',
+      `Added ${selSet.size} image(s) to folder "${folderObj?.title || targetId}". Click "Save All Changes" to push.`
+    );
+  };
+
+  // Bulk 1-Click Remove Selected Images from Folder / Stream (staged)
+  const handleBulkRemoveFromFolder = () => {
+    if (selectedImageIds.length === 0 || !bulkTargetFolderId) return;
+    const folderObj = streams.find((s) => s.id === bulkTargetFolderId);
+    const selSet = new Set(selectedImageIds);
+    setImages((prev) =>
+      prev.map((img) => {
+        if (!selSet.has(img.id)) return img;
+        return {
+          ...img,
+          streamIds: (img.streamIds || []).filter((id) => id !== bulkTargetFolderId),
+        };
+      })
+    );
+    showNotify(
+      'success',
+      `Removed ${selSet.size} image(s) from folder "${folderObj?.title || bulkTargetFolderId}".`
+    );
+  };
+
+  // Quick-create a new folder right from the Bulk Toolbar and add selected images to it
+  const handleQuickCreateAndAddFolder = () => {
+    const title = quickFolderName.trim();
+    if (!title) {
+      showNotify('error', 'Enter a folder name first.');
+      return;
+    }
+    const slug =
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') || `stream-${Date.now()}`;
+    const newFolder: StreamItem = {
+      id: `stream-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      title,
+      slug,
+      createdAt: new Date().toISOString(),
+    };
+    setStreams((prev) => [...prev, newFolder]);
+    setBulkTargetFolderId(newFolder.id);
+    setQuickFolderName('');
+    setShowQuickFolderInput(false);
+
+    if (selectedImageIds.length > 0) {
+      const selSet = new Set(selectedImageIds);
+      setImages((prev) =>
+        prev.map((img) =>
+          selSet.has(img.id) ? { ...img, streamIds: [...(img.streamIds || []), newFolder.id] } : img
+        )
+      );
+      showNotify('success', `Created folder "${title}" and added ${selSet.size} selected image(s) to it!`);
+    } else {
+      showNotify('success', `Created folder "${title}" in pending list.`);
     }
   };
 
@@ -417,8 +781,8 @@ export default function AdminPage() {
     }
   };
 
-  // Submit Hero Media (Image or Video with optional separate audio)
-  const handleAddHero = async (e: React.FormEvent) => {
+  // Stage Hero Media (Image or Video with optional separate audio)
+  const handleAddHero = (e: React.FormEvent) => {
     e.preventDefault();
     if (!heroUrl.trim()) {
       showNotify('error', 'Hero Media (URL or file) is required.');
@@ -427,118 +791,99 @@ export default function AdminPage() {
 
     setIsSubmittingHero(true);
     try {
-      const res = await fetch('/api/hero-images', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: heroUrl,
-          mediaType: heroMediaType,
-          title: heroTitle,
-          audioUrl: heroAudioUrl.trim() || undefined,
-        }),
-      });
+      const trimmedUrl = heroUrl.trim();
+      const isVideo =
+        heroMediaType === 'video' ||
+        Boolean(trimmedUrl.match(/\.(mp4|webm|mov|ogg)(\?.*)?$/i)) ||
+        trimmedUrl.startsWith('data:video/');
 
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data?.syncedToGitHub) {
-          showNotify('success', '🚀 Hero media added & Auto-committed to GitHub! Live site updating in ~45s.');
-        } else if (data?.githubError) {
-          showNotify('error', `⚠️ GitHub Push Failed: ${data.githubError}`);
-        } else {
-          showNotify('success', 'Hero media added! It will be randomly shown on homepage.');
-        }
-        setHeroUrl('');
-        setHeroTitle('');
-        setHeroAudioUrl('');
-        setHeroMediaType('image');
-        if (adminAudioPreviewRef.current) {
-          adminAudioPreviewRef.current.pause();
-          setActivePreviewAudio(null);
-        }
-        fetchData();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        showNotify('error', data.error || data.githubError || 'Failed to add hero media.');
+      const id = `hero-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      const newHero: HeroImage = {
+        id,
+        url: trimmedUrl,
+        mediaType: isVideo ? 'video' : 'image',
+        title: heroTitle.trim(),
+        audioUrl: heroAudioUrl.trim() || undefined,
+        dateAdded: new Date().toISOString().split('T')[0],
+      };
+
+      if (trimmedUrl.startsWith('data:image/')) {
+        setLocalPreviewMap((prev) => ({ ...prev, [id]: trimmedUrl }));
       }
-    } catch (err: any) {
-      showNotify('error', err.message || 'Error adding hero media');
+
+      setHeroImages((prev) => [newHero, ...prev]);
+      setHeroUrl('');
+      setHeroTitle('');
+      setHeroAudioUrl('');
+      setHeroMediaType('image');
+      if (adminAudioPreviewRef.current) {
+        adminAudioPreviewRef.current.pause();
+        setActivePreviewAudio(null);
+      }
+      showNotify('success', 'Hero media added to pending list! Click "Save All Changes" to push.');
     } finally {
       setIsSubmittingHero(false);
     }
   };
 
-  // Delete Hero Image
-  const handleDeleteHero = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this hero image?')) return;
-    try {
-      const res = await fetch(`/api/hero-images?id=${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data?.syncedToGitHub) {
-          showNotify('success', '🚀 Hero media removed & Auto-committed to GitHub! Live site updating in ~45s.');
-        } else if (data?.githubError) {
-          showNotify('error', `⚠️ GitHub Push Failed: ${data.githubError}`);
-        } else {
-          showNotify('success', 'Hero image deleted.');
-        }
-        setHeroImages(prev => prev.filter(h => h.id !== id));
-      }
-    } catch {
-      showNotify('error', 'Failed to delete hero image.');
-    }
+  // Delete Hero Image (staged)
+  const handleDeleteHero = (id: string) => {
+    if (!confirm('Remove this hero media?')) return;
+    setHeroImages((prev) => prev.filter((h) => h.id !== id));
+    showNotify('success', 'Hero media removed from pending list.');
   };
 
-  // Submit Stream
-  const handleAddStream = async (e: React.FormEvent) => {
+  // Stage Stream / Folder
+  const handleAddStream = (e: React.FormEvent) => {
     e.preventDefault();
     if (!streamTitle.trim()) {
-      showNotify('error', 'Stream Title is required.');
+      showNotify('error', 'Folder / Stream Title is required.');
       return;
     }
 
     setIsSubmittingStream(true);
     try {
-      const res = await fetch('/api/streams', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: streamTitle,
-          description: streamDescription,
-        }),
-      });
+      const trimmedTitle = streamTitle.trim();
+      const slug =
+        trimmedTitle
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '') || `stream-${Date.now()}`;
 
-      if (res.ok) {
-        showNotify('success', 'New stream created successfully!');
-        setStreamTitle('');
-        setStreamDescription('');
-        fetchData();
-      } else {
-        const data = await res.json();
-        showNotify('error', data.error || 'Failed to create stream.');
-      }
-    } catch (err: any) {
-      showNotify('error', err.message || 'Error creating stream');
+      const newStream: StreamItem = {
+        id: `stream-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        title: trimmedTitle,
+        slug,
+        description: streamDescription.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      };
+
+      setStreams((prev) => [...prev, newStream]);
+      if (!bulkTargetFolderId) setBulkTargetFolderId(newStream.id);
+      setStreamTitle('');
+      setStreamDescription('');
+      showNotify('success', `Folder "${trimmedTitle}" created in pending list!`);
     } finally {
       setIsSubmittingStream(false);
     }
   };
 
-  // Delete Stream
-  const handleDeleteStream = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this stream?')) return;
-    try {
-      const res = await fetch(`/api/streams?id=${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        showNotify('success', 'Stream deleted.');
-        setStreams(prev => prev.filter(s => s.id !== id));
-      }
-    } catch {
-      showNotify('error', 'Failed to delete stream.');
-    }
+  // Delete Stream / Folder (staged)
+  const handleDeleteStream = (id: string) => {
+    if (!confirm('Delete this folder / stream? Images inside will remain in your library.')) return;
+    setStreams((prev) => prev.filter((s) => s.id !== id));
+    setImages((prev) =>
+      prev.map((img) => ({
+        ...img,
+        streamIds: (img.streamIds || []).filter((sid) => sid !== id),
+      }))
+    );
+    if (bulkTargetFolderId === id) setBulkTargetFolderId('');
+    showNotify('success', 'Folder / stream removed from pending list.');
   };
 
-  // Submit Audio
-  const handleAddAudio = async (e: React.FormEvent) => {
+  // Stage Audio
+  const handleAddAudio = (e: React.FormEvent) => {
     e.preventDefault();
     if (!audioTitle.trim() || !audioUrl.trim()) {
       showNotify('error', 'Audio Title and Audio Link/Path are required.');
@@ -547,45 +892,29 @@ export default function AdminPage() {
 
     setIsSubmittingAudio(true);
     try {
-      const res = await fetch('/api/audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: audioTitle,
-          url: audioUrl,
-          artist: audioArtist,
-        }),
-      });
-
-      if (res.ok) {
-        showNotify('success', 'Audio track added to playlist!');
-        setAudioTitle('');
-        setAudioUrl('');
-        setAudioArtist('');
-        fetchData();
-      } else {
-        const data = await res.json();
-        showNotify('error', data.error || 'Failed to add audio track.');
-      }
-    } catch (err: any) {
-      showNotify('error', err.message || 'Error adding audio track');
+      const newTrack: AudioTrack = {
+        id: `track-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        title: audioTitle.trim(),
+        url: audioUrl.trim(),
+        artist: audioArtist.trim() || 'Dar-ul-Ehsan Ambient',
+        duration: '0:30',
+        dateAdded: new Date().toISOString().split('T')[0],
+      };
+      setAudioTracks((prev) => [newTrack, ...prev]);
+      setAudioTitle('');
+      setAudioUrl('');
+      setAudioArtist('');
+      showNotify('success', 'Audio track added to pending list!');
     } finally {
       setIsSubmittingAudio(false);
     }
   };
 
-  // Delete Audio
-  const handleDeleteAudio = async (id: string) => {
+  // Delete Audio (staged)
+  const handleDeleteAudio = (id: string) => {
     if (!confirm('Remove this track from background playlist?')) return;
-    try {
-      const res = await fetch(`/api/audio?id=${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        showNotify('success', 'Audio track removed.');
-        setAudioTracks(prev => prev.filter(t => t.id !== id));
-      }
-    } catch {
-      showNotify('error', 'Failed to delete audio.');
-    }
+    setAudioTracks((prev) => prev.filter((t) => t.id !== id));
+    showNotify('success', 'Audio track removed from pending list.');
   };
 
   // If Admin access is disabled globally via config
@@ -714,8 +1043,8 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Live GitHub Auto-Sync & Mobile Publishing Status */}
-        <div className="mt-4">
+        {/* Live GitHub Batch Sync & 1-Button Save All Bar */}
+        <div className="mt-4 space-y-3">
           {syncStatus?.isConfigured ? (
             <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <div className="flex items-start sm:items-center gap-3">
@@ -725,20 +1054,20 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-emerald-950">GitHub Live Auto-Sync Active</span>
+                    <span className="font-semibold text-emerald-950">GitHub 1-Push Batch Sync Ready</span>
                     <span className="font-mono text-[10px] sm:text-[11px] bg-white text-emerald-800 font-semibold px-2 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
                       {syncStatus.owner}/{syncStatus.repo} ({syncStatus.branch})
                     </span>
                   </div>
                   <p className="text-emerald-700 text-[11px] mt-0.5">
-                    1-Click Mobile Upload is operational. All uploads automatically commit to GitHub & trigger instant live site updates!
+                    Upload/edit/organize all images first, then click <strong>Save All Changes</strong> to push <code className="bg-emerald-100 px-1 rounded">db.json</code> to GitHub in <strong>1 single commit</strong>—saving Cloudflare daily build limits!
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-medium">
                   <Smartphone className="w-3 h-3" />
-                  <span>Mobile Ready</span>
+                  <span>1-Push Mode</span>
                 </span>
               </div>
             </div>
@@ -756,7 +1085,7 @@ export default function AdminPage() {
                     </span>
                   </div>
                   <p className="text-amber-800 text-[11px] mt-0.5">
-                    Online photo uploads cannot commit to GitHub until <strong>GITHUB_TOKEN</strong> is added to Cloudflare Pages Settings &rarr; Environment Variables.
+                    Online saves cannot commit to GitHub until <strong>GITHUB_TOKEN</strong> is added to Cloudflare Pages Settings &rarr; Environment Variables (local <code className="bg-amber-100 px-1 rounded">db.json</code> saves still work locally).
                   </p>
                 </div>
               </div>
@@ -765,6 +1094,90 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+
+          {/* Global Save All Changes Control Strip */}
+          <div
+            className={`rounded-2xl p-3.5 sm:p-4 border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
+              pendingChanges.hasUnsavedChanges
+                ? 'bg-neutral-900 text-white border-neutral-800 shadow-md'
+                : 'bg-neutral-50 text-neutral-700 border-neutral-200'
+            }`}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  pendingChanges.hasUnsavedChanges
+                    ? 'bg-amber-400 text-neutral-950'
+                    : 'bg-white border border-neutral-200 text-emerald-600'
+                }`}
+              >
+                {pendingChanges.hasUnsavedChanges ? (
+                  <Save className="w-4 h-4" />
+                ) : (
+                  <CheckCircle className="w-4 h-4" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs sm:text-sm font-bold">
+                    {pendingChanges.hasUnsavedChanges
+                      ? `Unsaved Pending Changes (${pendingChanges.totalChanges})`
+                      : 'All Changes Synced with Database'}
+                  </span>
+                  {pendingChanges.hasUnsavedChanges && (
+                    <span className="text-[10px] font-semibold bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full">
+                      Not pushed yet
+                    </span>
+                  )}
+                </div>
+                <p
+                  className={`text-[11px] truncate ${
+                    pendingChanges.hasUnsavedChanges ? 'text-neutral-300' : 'text-neutral-500'
+                  }`}
+                >
+                  {pendingChanges.hasUnsavedChanges
+                    ? `Pending: ${pendingChanges.summaryParts.join(' • ')}`
+                    : 'Add, upload, edit, delete, or organize images into folders—then push all in 1 click.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {pendingChanges.hasUnsavedChanges && (
+                <button
+                  type="button"
+                  onClick={handleDiscardChanges}
+                  disabled={isSavingAll}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-700 hover:bg-neutral-800 text-neutral-300 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Discard</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveAllChanges}
+                disabled={isSavingAll || !pendingChanges.hasUnsavedChanges}
+                className={`inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  pendingChanges.hasUnsavedChanges
+                    ? 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-sm'
+                    : 'bg-neutral-200 text-neutral-500'
+                }`}
+              >
+                {isSavingAll ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Pushing to GitHub...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save All Changes &amp; Push to GitHub</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -956,7 +1369,7 @@ export default function AdminPage() {
           }`}
         >
           <Layers className="w-3.5 h-3.5" />
-          <span>Streams ({streams.length})</span>
+          <span>Folders / Streams ({streams.length})</span>
         </button>
 
         <button
@@ -975,16 +1388,54 @@ export default function AdminPage() {
       {/* TAB 1: IMAGES MANAGEMENT & ADD FORM */}
       {activeTab === 'images' && (
         <div className="space-y-8 sm:space-y-12">
-          {/* Add Image Form */}
+          {/* Add Image Form / Bulk Online Uploader */}
           <div className="bg-neutral-50/60 border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8">
-            <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              <span>Add New Image to Stream</span>
-            </h2>
-            <p className="text-xs text-neutral-500 mb-6">
-              Complete the input fields below. Searchable tags and reference numbers will enable users to easily find the image on the public feed.
-            </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+              <div>
+                <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  <span>Upload &amp; Add Images Online</span>
+                </h2>
+                <p className="text-xs text-neutral-500">
+                  Add a single image or upload multiple photos/links at once. All changes stage locally until you click <strong>Save All Changes</strong>.
+                </p>
+              </div>
 
+              {/* Single vs Bulk Upload Mode Switcher */}
+              <div className="inline-flex items-center p-1 bg-neutral-200/70 rounded-xl text-xs self-start sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => setImageAddMode('single')}
+                  className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                    imageAddMode === 'single'
+                      ? 'bg-white text-neutral-900 shadow-xs'
+                      : 'text-neutral-600 hover:text-neutral-900'
+                  }`}
+                >
+                  Single Image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageAddMode('bulk')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                    imageAddMode === 'bulk'
+                      ? 'bg-neutral-900 text-white shadow-xs'
+                      : 'text-neutral-600 hover:text-neutral-900'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Bulk Upload Online</span>
+                </button>
+              </div>
+            </div>
+
+            {imageAddMode === 'bulk' ? (
+              <BulkUploadPanel
+                streams={streams}
+                onStageImages={handleStageBulkImages}
+                onNotify={showNotify}
+              />
+            ) : (
             <form onSubmit={handleAddImage} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
@@ -1013,7 +1464,7 @@ export default function AdminPage() {
                     }}
                     label="Image File or Direct Link"
                     required
-                    helperText="Upload a photo from your computer (auto-optimized) or provide a direct image URL link."
+                    helperText="Upload a photo from your device (auto-optimized) or provide a direct image URL link."
                   />
 
                   {/* Duplicate Link Warning Banner */}
@@ -1025,7 +1476,7 @@ export default function AdminPage() {
                           <strong>Duplicate Image Warning ({dupWarningCount} of 3):</strong>{' '}
                           {dupWarningCount < 3
                             ? `This image already exists in the database. Click submit ${3 - dupWarningCount} more time(s) to accept it.`
-                            : '3 warnings acknowledged! Click submit once more to accept and publish this duplicate image.'}
+                            : '3 warnings acknowledged! Click submit once more to accept this duplicate image.'}
                         </span>
                       </div>
                       <span className="font-mono font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded text-[11px] whitespace-nowrap ml-2">
@@ -1117,15 +1568,15 @@ export default function AdminPage() {
                   </p>
                 </div>
 
-                {/* 6. Add Image to Streams */}
+                {/* 6. Add Image to Folders / Streams */}
                 <div>
                   <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1">
                     <Layers className="w-3.5 h-3.5 text-neutral-400" />
-                    <span>Assign to Streams</span>
+                    <span>Assign to Folders / Streams</span>
                   </label>
                   {streams.length === 0 ? (
                     <p className="text-xs text-neutral-400 p-2 bg-white rounded-xl border border-neutral-200">
-                      No streams created yet. Go to Streams tab to create one.
+                      No folders/streams created yet. Go to Streams tab to create one.
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-2 p-3 bg-white border border-neutral-200 rounded-xl max-h-32 overflow-y-auto">
@@ -1136,7 +1587,7 @@ export default function AdminPage() {
                             type="button"
                             key={stream.id}
                             onClick={() => toggleStreamSelection(stream.id)}
-                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-neutral-900 text-white'
                                 : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
@@ -1150,7 +1601,7 @@ export default function AdminPage() {
                     </div>
                   )}
                   <p className="text-[11px] text-neutral-400 mt-1">
-                    Click to select which streams this image will appear in.
+                    Click to select which folders/streams this image will appear in.
                   </p>
                 </div>
 
@@ -1183,32 +1634,167 @@ export default function AdminPage() {
                   }`}
                 >
                   {isSubmittingImage 
-                    ? 'Publishing to Stream...' 
+                    ? 'Staging Image...' 
                     : dupWarningCount > 0 && dupWarningUrl === imageUrl.trim()
                       ? dupWarningCount >= 3
-                        ? 'Accept Duplicate & Publish to Stream'
+                        ? 'Accept Duplicate & Add to Pending List'
                         : `Acknowledge Warning (${dupWarningCount}/3) & Proceed`
-                      : 'Publish Image to Stream'}
+                      : 'Add Image to Pending List'}
                 </button>
               </div>
             </form>
+            )}
           </div>
 
-          {/* Existing Images Table / Registry */}
+          {/* Existing Images Table / Registry with Multi-Select, 1-Click Folder & Delete, and Edit */}
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
               <div>
                 <h2 className="text-base font-bold text-neutral-900">
-                  Uploaded Images Registry ({images.length})
+                  Uploaded Images Registry ({filteredRegistryImages.length}{filteredRegistryImages.length !== images.length ? ` of ${images.length}` : ''})
                 </h2>
                 <p className="text-[11px] text-neutral-500">
-                  Track public views, downloads, and confidential archival notes.
+                  Select multiple images to delete or add to a folder in 1 click, or click Edit to modify any image link &amp; metadata.
                 </p>
               </div>
-              <span className="text-xs text-neutral-400 font-mono">
-                Real-time synchronized
-              </span>
+
+              {/* Search & Folder Filter Controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 sm:flex-none min-w-[180px]">
+                  <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={registrySearch}
+                    onChange={(e) => setRegistrySearch(e.target.value)}
+                    placeholder="Filter title, ref #, tag..."
+                    className="w-full sm:w-52 pl-8 pr-3 py-2 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+                <select
+                  value={registryFolderFilter}
+                  onChange={(e) => setRegistryFolderFilter(e.target.value)}
+                  className="px-3 py-2 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                >
+                  <option value="all">All Folders ({images.length})</option>
+                  <option value="__none__">
+                    No Folder ({images.filter((i) => !i.streamIds || i.streamIds.length === 0).length})
+                  </option>
+                  {streams.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.title} ({images.filter((i) => i.streamIds?.includes(s.id)).length})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={toggleSelectAllVisible}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-neutral-200 hover:bg-neutral-50 rounded-xl text-xs font-medium text-neutral-700 cursor-pointer"
+                >
+                  {allVisibleSelected ? (
+                    <CheckSquare className="w-3.5 h-3.5 text-neutral-900" />
+                  ) : (
+                    <Square className="w-3.5 h-3.5 text-neutral-400" />
+                  )}
+                  <span>{allVisibleSelected ? 'Deselect All' : 'Select All'}</span>
+                </button>
+              </div>
             </div>
+
+            {/* 1-CLICK BULK ACTION TOOLBAR (Shown when 1+ images selected) */}
+            {selectedImageIds.length > 0 && (
+              <div className="mb-4 p-3.5 sm:p-4 bg-neutral-900 text-white rounded-2xl shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-emerald-500 text-neutral-950 font-bold text-xs">
+                    {selectedImageIds.length} Selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedImageIds([])}
+                    className="text-xs text-neutral-400 hover:text-white underline cursor-pointer"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Folder selector + 1-click Add to Folder */}
+                  <div className="flex flex-wrap items-center gap-1.5 bg-neutral-800 p-1.5 rounded-xl border border-neutral-700">
+                    <select
+                      value={bulkTargetFolderId}
+                      onChange={(e) => setBulkTargetFolderId(e.target.value)}
+                      className="px-2.5 py-1.5 bg-neutral-900 border border-neutral-700 rounded-lg text-xs text-white focus:outline-none"
+                    >
+                      <option value="">-- Choose Folder --</option>
+                      {streams.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.title}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBulkAddToFolder()}
+                      disabled={!bulkTargetFolderId}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-neutral-950 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                    >
+                      <FolderInput className="w-3.5 h-3.5" />
+                      <span>Add to Folder</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleBulkRemoveFromFolder}
+                      disabled={!bulkTargetFolderId}
+                      className="px-2.5 py-1.5 bg-neutral-700 hover:bg-neutral-600 disabled:opacity-40 text-neutral-200 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                      title="Remove selected images from the chosen folder"
+                    >
+                      Remove from Folder
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickFolderInput((v) => !v)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white text-xs font-medium rounded-lg cursor-pointer"
+                      title="Create new folder"
+                    >
+                      <FolderPlus className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">New Folder</span>
+                    </button>
+                  </div>
+
+                  {/* 1-Click Delete Selected */}
+                  <button
+                    type="button"
+                    onClick={handleBulkDeleteSelected}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Selected ({selectedImageIds.length})</span>
+                  </button>
+                </div>
+
+                {/* Inline Quick New Folder Creator */}
+                {showQuickFolderInput && (
+                  <div className="w-full lg:w-auto flex items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-neutral-800">
+                    <input
+                      type="text"
+                      value={quickFolderName}
+                      onChange={(e) => setQuickFolderName(e.target.value)}
+                      placeholder="New folder name..."
+                      className="px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleQuickCreateAndAddFolder}
+                      className="px-3 py-1.5 bg-white text-neutral-950 text-xs font-bold rounded-lg cursor-pointer"
+                    >
+                      Create &amp; Add
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Desktop Table View (hidden on mobile) */}
             <div className="hidden md:block bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-xs">
@@ -1216,28 +1802,69 @@ export default function AdminPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-neutral-50 border-b border-neutral-200 text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
-                      <th className="py-3 px-4">Preview</th>
-                      <th className="py-3 px-4">Ref #</th>
-                      <th className="py-3 px-4">Title & Description</th>
+                      <th className="py-3 px-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={toggleSelectAllVisible}
+                          className="w-4 h-4 rounded border-neutral-300 accent-neutral-900 cursor-pointer"
+                          title="Select all visible images"
+                        />
+                      </th>
+                      <th className="py-3 px-3">Preview</th>
+                      <th className="py-3 px-3">Ref #</th>
+                      <th className="py-3 px-4">Title &amp; Link / Description</th>
                       <th className="py-3 px-3 text-center">Views</th>
                       <th className="py-3 px-3 text-center">Downloads</th>
-                      <th className="py-3 px-4">Admin Notes (Confidential)</th>
-                      <th className="py-3 px-4">Streams & Tags</th>
+                      <th className="py-3 px-4">Admin Notes</th>
+                      <th className="py-3 px-4">Folders &amp; Tags</th>
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 text-xs">
-                    {images.map((image) => (
-                      <tr key={image.id} className="hover:bg-neutral-50/50 transition-colors">
-                        <td className="py-3 px-4 w-16">
+                    {filteredRegistryImages.map((image) => {
+                      const isSelected = selectedImageIds.includes(image.id);
+                      const isNew = pendingChanges.addedImageIds.has(image.id);
+                      const isEdited = pendingChanges.editedImageIds.has(image.id);
+                      const previewSrc =
+                        image.url.startsWith('/uploads/') && localPreviewMap[image.id]
+                          ? localPreviewMap[image.id]
+                          : image.url;
+
+                      return (
+                      <tr
+                        key={image.id}
+                        className={`transition-colors ${
+                          isSelected ? 'bg-emerald-50/60' : 'hover:bg-neutral-50/50'
+                        }`}
+                      >
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleImageSelected(image.id)}
+                            className="w-4 h-4 rounded border-neutral-300 accent-neutral-900 cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-3 px-3 w-16">
                           <img
-                            src={image.url}
+                            src={previewSrc}
                             alt={image.title}
                             className="w-12 h-12 rounded-lg object-cover bg-neutral-100 border border-neutral-200"
                           />
                         </td>
-                        <td className="py-3 px-4 font-mono font-medium text-neutral-700 whitespace-nowrap">
-                          {image.referenceNumber}
+                        <td className="py-3 px-3 font-mono font-medium text-neutral-700 whitespace-nowrap">
+                          <div>{image.referenceNumber}</div>
+                          {isNew && (
+                            <span className="inline-block mt-1 text-[9px] font-sans font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                              NEW (Unsaved)
+                            </span>
+                          )}
+                          {isEdited && (
+                            <span className="inline-block mt-1 text-[9px] font-sans font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                              EDITED
+                            </span>
+                          )}
                         </td>
                         <td className="py-3 px-4 max-w-xs">
                           <Link
@@ -1247,8 +1874,11 @@ export default function AdminPage() {
                             className="font-medium text-neutral-900 hover:underline flex items-center gap-1"
                           >
                             <span className="truncate">{image.title}</span>
-                            <ExternalLink className="w-3 h-3 text-neutral-400" />
+                            <ExternalLink className="w-3 h-3 text-neutral-400 shrink-0" />
                           </Link>
+                          <p className="text-[10px] text-neutral-400 font-mono truncate max-w-[220px] mt-0.5">
+                            {image.url.startsWith('data:') ? '[Staged Local Upload]' : image.url}
+                          </p>
                           {image.description && (
                             <p className="text-[11px] text-neutral-500 line-clamp-1 mt-0.5">
                               {image.description}
@@ -1278,7 +1908,18 @@ export default function AdminPage() {
                           )}
                         </td>
                         <td className="py-3 px-4">
-                          <div className="flex flex-wrap gap-1 max-w-[200px]">
+                          <div className="flex flex-wrap gap-1 max-w-[220px]">
+                            {image.streamIds?.map((sid) => {
+                              const folder = streams.find((s) => s.id === sid);
+                              return (
+                                <span
+                                  key={sid}
+                                  className="text-[10px] bg-neutral-900 text-white px-2 py-0.5 rounded-full font-medium"
+                                >
+                                  📁 {folder?.title || sid}
+                                </span>
+                              );
+                            })}
                             {image.tags?.map((t, i) => (
                               <span key={i} className="text-[10px] bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-600">
                                 #{t}
@@ -1287,16 +1928,29 @@ export default function AdminPage() {
                           </div>
                         </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
-                          <button
-                            onClick={() => handleDeleteImage(image.id)}
-                            title="Delete image"
-                            className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingImage(image)}
+                              title="Edit image link & metadata"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-neutral-700 hover:text-neutral-950 bg-neutral-100 hover:bg-neutral-200 rounded-lg text-[11px] font-medium transition-colors cursor-pointer"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteImage(image.id)}
+                              title="Delete image"
+                              className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1304,19 +1958,53 @@ export default function AdminPage() {
 
             {/* Mobile Card-Based Registry View (optimized for phones) */}
             <div className="md:hidden space-y-3">
-              {images.map((image) => (
-                <div key={image.id} className="bg-white border border-neutral-200 rounded-2xl p-3.5 shadow-2xs space-y-3">
+              {filteredRegistryImages.map((image) => {
+                const isSelected = selectedImageIds.includes(image.id);
+                const isNew = pendingChanges.addedImageIds.has(image.id);
+                const isEdited = pendingChanges.editedImageIds.has(image.id);
+                const previewSrc =
+                  image.url.startsWith('/uploads/') && localPreviewMap[image.id]
+                    ? localPreviewMap[image.id]
+                    : image.url;
+
+                return (
+                <div
+                  key={image.id}
+                  className={`border rounded-2xl p-3.5 shadow-2xs space-y-3 transition-colors ${
+                    isSelected
+                      ? 'bg-emerald-50/50 border-emerald-400 ring-1 ring-emerald-300'
+                      : 'bg-white border-neutral-200'
+                  }`}
+                >
                   <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleImageSelected(image.id)}
+                      className="w-4 h-4 mt-1 rounded border-neutral-300 accent-neutral-900 shrink-0 cursor-pointer"
+                    />
                     <img
-                      src={image.url}
+                      src={previewSrc}
                       alt={image.title}
                       className="w-16 h-16 rounded-xl object-cover bg-neutral-100 border border-neutral-200 shrink-0"
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className="font-mono text-[11px] font-bold text-neutral-800 bg-neutral-100 px-2 py-0.5 rounded-md">
-                          {image.referenceNumber || 'No Ref'}
-                        </span>
+                      <div className="flex items-center justify-between gap-1 mb-1 flex-wrap">
+                        <div className="flex items-center gap-1">
+                          <span className="font-mono text-[11px] font-bold text-neutral-800 bg-neutral-100 px-2 py-0.5 rounded-md">
+                            {image.referenceNumber || 'No Ref'}
+                          </span>
+                          {isNew && (
+                            <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                              NEW
+                            </span>
+                          )}
+                          {isEdited && (
+                            <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                              EDITED
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1.5 text-[11px] font-mono">
                           <span className="inline-flex items-center gap-1 text-neutral-700 bg-neutral-100 px-1.5 py-0.5 rounded-md">
                             <Eye className="w-3 h-3 text-neutral-400" />
@@ -1332,6 +2020,9 @@ export default function AdminPage() {
                       <h3 className="font-semibold text-xs text-neutral-900 truncate">
                         {image.title}
                       </h3>
+                      <p className="text-[10px] text-neutral-400 font-mono truncate">
+                        {image.url.startsWith('data:') ? '[Staged Local Upload]' : image.url}
+                      </p>
 
                       {image.description && (
                         <p className="text-[11px] text-neutral-500 line-clamp-1 mt-0.5">
@@ -1349,9 +2040,20 @@ export default function AdminPage() {
                     </div>
                   )}
 
-                  {/* Tags & Action Bar */}
+                  {/* Folders, Tags & Action Bar */}
                   <div className="flex items-center justify-between pt-2 border-t border-neutral-100 gap-2">
-                    <div className="flex flex-wrap gap-1 max-w-[65%]">
+                    <div className="flex flex-wrap gap-1 max-w-[55%]">
+                      {image.streamIds?.map((sid) => {
+                        const folder = streams.find((s) => s.id === sid);
+                        return (
+                          <span
+                            key={sid}
+                            className="text-[10px] bg-neutral-900 text-white px-2 py-0.5 rounded-full"
+                          >
+                            📁 {folder?.title || sid}
+                          </span>
+                        );
+                      })}
                       {image.tags?.slice(0, 3).map((t, i) => (
                         <span key={i} className="text-[10px] bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-600">
                           #{t}
@@ -1362,7 +2064,15 @@ export default function AdminPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setEditingImage(image)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-neutral-900 text-white text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        <span>Edit</span>
+                      </button>
                       <Link
                         href={`/image/${image.id}`}
                         target="_blank"
@@ -1373,6 +2083,7 @@ export default function AdminPage() {
                         <ExternalLink className="w-3 h-3" />
                       </Link>
                       <button
+                        type="button"
                         onClick={() => handleDeleteImage(image.id)}
                         className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                         title="Delete image"
@@ -1382,7 +2093,8 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
         </div>
@@ -2549,17 +3261,18 @@ export default function AdminPage() {
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-6 border-t border-neutral-200">
                 <button
                   type="submit"
-                  disabled={isSavingLogo}
-                  className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center"
+                  disabled={isSavingLogo || isSavingAll}
+                  className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center gap-2"
                 >
-                  {isSavingLogo ? 'Saving Settings...' : 'Save All Appearance & Theme Settings'}
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSavingLogo || isSavingAll ? 'Pushing All Changes...' : 'Save All Changes & Push to GitHub'}</span>
                 </button>
 
                 {logoInputUrl && (
                   <button
                     type="button"
                     onClick={handleClearLogo}
-                    disabled={isSavingLogo}
+                    disabled={isSavingLogo || isSavingAll}
                     className="w-full sm:w-auto px-4 py-3 sm:py-2.5 border border-neutral-200 hover:bg-neutral-100 text-neutral-700 text-xs font-semibold rounded-xl transition-all cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center"
                   >
                     Clear Brand Logo
@@ -2571,22 +3284,22 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* TAB 4: STREAMS MANAGEMENT */}
+      {/* TAB 4: FOLDERS / STREAMS MANAGEMENT */}
       {activeTab === 'streams' && (
         <div className="space-y-8 sm:space-y-10">
           <div className="bg-neutral-50/60 border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-2xl">
             <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
               <Layers className="w-4 h-4" />
-              <span>Create New Stream</span>
+              <span>Create New Folder / Stream</span>
             </h2>
             <p className="text-xs text-neutral-500 mb-6">
-              Create feeds or categories to organize images for browsing via the navbar Streams button.
+              Create folders (streams) to organize images. Visitors can filter by these folders via the navbar Streams button, and you can bulk-assign images to them from the Images tab.
             </p>
 
             <form onSubmit={handleAddStream} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                  Stream Title <span className="text-red-500">*</span>
+                  Folder / Stream Title <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -2600,13 +3313,13 @@ export default function AdminPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                  Stream Description (Optional)
+                  Description (Optional)
                 </label>
                 <textarea
                   rows={2}
                   value={streamDescription}
                   onChange={(e) => setStreamDescription(e.target.value)}
-                  placeholder="Short description of what this stream contains..."
+                  placeholder="Short description of what this folder contains..."
                   className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
                 />
               </div>
@@ -2616,14 +3329,14 @@ export default function AdminPage() {
                 disabled={isSubmittingStream}
                 className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center"
               >
-                {isSubmittingStream ? 'Creating Stream...' : 'Create Stream'}
+                {isSubmittingStream ? 'Creating Folder...' : 'Add Folder / Stream'}
               </button>
             </form>
           </div>
 
           <div>
             <h2 className="text-base font-bold text-neutral-900 mb-4">
-              Existing Streams ({streams.length})
+              Existing Folders / Streams ({streams.length})
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2793,6 +3506,63 @@ export default function AdminPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Image Modal */}
+      <EditImageModal
+        image={editingImage}
+        streams={streams}
+        previewUrlOverride={
+          editingImage && editingImage.url.startsWith('/uploads/')
+            ? localPreviewMap[editingImage.id]
+            : undefined
+        }
+        onClose={() => setEditingImage(null)}
+        onSave={handleSaveEditedImage}
+      />
+
+      {/* Sticky Floating Bottom Save Bar when unsaved changes exist */}
+      {pendingChanges.hasUnsavedChanges && (
+        <div className="fixed bottom-4 inset-x-3 sm:inset-x-auto sm:right-6 z-40 max-w-xl sm:ml-auto bg-neutral-950/95 backdrop-blur-md text-white border border-neutral-800 rounded-2xl p-3 sm:p-4 shadow-2xl flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-bold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+              <span>{pendingChanges.totalChanges} Unsaved Change{pendingChanges.totalChanges > 1 ? 's' : ''}</span>
+            </div>
+            <p className="text-[10px] text-neutral-400 truncate max-w-[200px] sm:max-w-xs">
+              {pendingChanges.summaryParts.join(' • ')}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleDiscardChanges}
+              disabled={isSavingAll}
+              className="px-2.5 py-2 rounded-xl border border-neutral-700 hover:bg-neutral-800 text-[11px] font-medium text-neutral-300 cursor-pointer"
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveAllChanges}
+              disabled={isSavingAll}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-xs font-bold rounded-xl shadow-sm cursor-pointer disabled:opacity-50"
+            >
+              {isSavingAll ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save All Changes</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}

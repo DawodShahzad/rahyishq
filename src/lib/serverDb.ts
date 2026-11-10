@@ -1,7 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import initialDb from '@/data/db.json';
-import { syncDbToGitHub, isGitHubSyncConfigured } from '@/lib/githubSync';
+import {
+  syncBatchToGitHub,
+  isGitHubSyncConfigured,
+  ExtraRepoFile,
+} from '@/lib/githubSync';
 
 export function getDbPath(): string | null {
   try {
@@ -28,11 +32,12 @@ export function getServerDb() {
 }
 
 /**
- * Persists updates either to local db.json (if running on local Node)
- * and/or pushes directly to GitHub repository (for Cloudflare Pages / production).
+ * Persists updates + optional uploaded media files to local disk (if writable)
+ * and/or pushes everything in ONE single GitHub commit (for Cloudflare / production).
  */
-export async function writeServerDb(
+export async function writeBatchServerDb(
   dataOrMutator: any,
+  extraFiles: ExtraRepoFile[] = [],
   commitMessage = 'Update database'
 ): Promise<{ localWritten: boolean; githubResult: any }> {
   let localWritten = false;
@@ -41,6 +46,16 @@ export async function writeServerDb(
   try {
     const dbPath = getDbPath();
     if (dbPath && typeof fs !== 'undefined' && typeof fs.writeFileSync === 'function') {
+      const uploadsDir = path.join(/*turbopackIgnore: true*/ process.cwd(), 'public', 'uploads');
+      for (const file of extraFiles) {
+        const filename = path.basename(file.path);
+        const absPath = path.join(/*turbopackIgnore: true*/ uploadsDir, filename);
+        if (typeof fs.mkdirSync === 'function') {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        fs.writeFileSync(absPath, Buffer.from(file.contentBase64, 'base64'));
+      }
+
       const current = getServerDb();
       const updated = typeof dataOrMutator === 'function' ? dataOrMutator(current) : dataOrMutator;
       fs.writeFileSync(dbPath, JSON.stringify(updated, null, 2), 'utf8');
@@ -51,10 +66,10 @@ export async function writeServerDb(
     console.warn('[serverDb] Local write skipped (read-only environment):', err);
   }
 
-  // 2. GitHub sync commit (for live Cloudflare Pages deployment)
+  // 2. GitHub sync commit (single commit for db.json + all extraFiles)
   let githubResult: any = null;
   if (isGitHubSyncConfigured()) {
-    githubResult = await syncDbToGitHub(dataOrMutator, commitMessage);
+    githubResult = await syncBatchToGitHub(dataOrMutator, extraFiles, commitMessage);
   } else {
     githubResult = {
       success: false,
@@ -63,4 +78,15 @@ export async function writeServerDb(
   }
 
   return { localWritten, githubResult };
+}
+
+/**
+ * Persists updates either to local db.json (if running on local Node)
+ * and/or pushes directly to GitHub repository (for Cloudflare Pages / production).
+ */
+export async function writeServerDb(
+  dataOrMutator: any,
+  commitMessage = 'Update database'
+): Promise<{ localWritten: boolean; githubResult: any }> {
+  return writeBatchServerDb(dataOrMutator, [], commitMessage);
 }

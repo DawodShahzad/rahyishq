@@ -146,6 +146,20 @@ export async function processLocalImageFile(
   });
 }
 
+export function sanitizeImageUrlInput(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('data:')) return trimmed;
+  // Extract src="..." if user pasted an HTML <img> tag
+  const imgSrcMatch = trimmed.match(/src=["']([^"']+)["']/i);
+  if (imgSrcMatch && imgSrcMatch[1]) {
+    return imgSrcMatch[1].trim();
+  }
+  // Strip accidental trailing attributes like `https://i.ibb.co/x.jpg" alt="...`
+  const firstToken = trimmed.split(/["'\s<>]/)[0];
+  return firstToken || trimmed;
+}
+
 export default function ImageFileInput({
   value,
   onChange,
@@ -171,6 +185,15 @@ export default function ImageFileInput({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Sync mode when switching edited items
+  useEffect(() => {
+    if (value?.startsWith('data:')) {
+      setMode('file');
+    } else if (value) {
+      setMode('url');
+    }
+  }, [value]);
+
   // Clear metadata if value was cleared
   useEffect(() => {
     if (!value) {
@@ -184,7 +207,7 @@ export default function ImageFileInput({
   const handleUrlChange = (newUrl: string) => {
     setErrorMessage('');
     setUrlVerified(false);
-    const trimmed = newUrl.trim();
+    const trimmed = sanitizeImageUrlInput(newUrl);
     if (!trimmed) {
       onChange('');
       return;
@@ -503,11 +526,11 @@ export default function ImageFileInput({
             </div>
           )}
 
-          {/* Cloudflare limit tip */}
-          <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl text-[11px] text-amber-800 flex items-start gap-2">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+          {/* Batch upload tip */}
+          <div className="p-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-[11px] text-emerald-800 flex items-start gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
             <span>
-              <strong>Performance Tip:</strong> For Cloudflare Pages, uploading images to an external CDN (Cloudinary, Imgur, ImageKit, etc.) and using the <strong>3rd Party CDN Link</strong> tab is highly recommended. It keeps your database lightweight, preserves Cloudflare bandwidth, and prevents GitHub push size limit errors.
+              <strong>Cloud-Optimized:</strong> Uploaded images are auto-compressed to WebP and saved as clean files in <code className="bg-emerald-100/80 px-1 rounded">public/uploads/</code> in a single GitHub push when you click <strong>Save All Changes</strong>—keeping <code className="bg-emerald-100/80 px-1 rounded">db.json</code> lightweight and saving Cloudflare build limits.
             </span>
           </div>
         </div>
