@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+/* Jameel Noori Nastaleeq Font Configuration */
+@font-face {
+  font-family: 'Jameel Noori Nastaleeq';
+  src: local('Jameel Noori Nastaleeq'),
+       local('Jameel Noori Nastaleeq Regular'),
+       local('JameelNooriNastaleeq'),
+       url('https://cdn.jsdelivr.net/gh/urdutext/jameel-noori-nastaleeq/JameelNooriNastaleeq.woff2') format('woff2'),
+       url('https://cdn.jsdelivr.net/gh/urdutext/jameel-noori-nastaleeq/JameelNooriNastaleeq.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #111827;
+  --card-bg: #ffffff;
+  --card-border: #f0f0f2;
+  --card-border-hover: #dcdce2;
+  --accent-primary: #18181b;
+  --accent-muted: #71717a;
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-urdu: 'Jameel Noori Nastaleeq', var(--font-nastaliq), 'Noto Nastaliq Urdu', 'Scheherazade New', serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: #ffffff;
+}
+
+body {
+  background-color: transparent;
+  color: #111827;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Jameel Noori Nastaleeq Urdu Typography Utility */
+.font-urdu {
+  font-family: var(--font-urdu);
+  direction: rtl;
+  text-align: right;
+  line-height: 2.2;
+  letter-spacing: 0;
+  word-spacing: 0.1em;
+}
+
+/* Clean Custom Minimal Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #ffffff;
+}
+::-webkit-scrollbar-thumb {
+  background: #e4e4e7;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1aa;
+}
+
+/* Minimalist Clean Card Styles */
+.minimal-card {
+  background: #ffffff;
+  border: 1px solid #f0f0f2;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.minimal-card:hover {
+  border-color: #d4d4d8;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+}
+
+/* Clean Button Styles */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: #18181b;
+  color: #ffffff;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+.btn-primary:hover {
+  background-color: #27272a;
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: #f4f4f5;
+  color: #27272a;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e4e4e7;
+  transition: all 0.2s ease;
+}
+.btn-secondary:hover {
+  background-color: #e4e4e7;
+  color: #09090b;
+}
+
+/* Subtle pulse for floating audio button */
+@keyframes audioPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  }
+}
+
+.audio-pulse {
+  animation: audioPulse 3s ease-in-out infinite;
+}
+
+
+/* Forcefully remove Next.js dev indicator floating button ("N" icon badge) */
+nextjs-portal,
+[data-nextjs-dev-overlay],
+[data-nextjs-toast],
+[data-nextjs-route-announcer],
+.__next-dev-indicator,
+div[data-nextjs-toast="true"],
+button[aria-label*="Next.js"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+

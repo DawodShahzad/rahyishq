@@ -1,0 +1,3578 @@
+'use client';
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import Link from 'next/link';
+import { 
+  Plus, 
+  Trash2, 
+  Layers, 
+  Image as ImageIcon, 
+  Music, 
+  Lock, 
+  Eye, 
+  Tag, 
+  Hash, 
+  CheckCircle, 
+  AlertCircle, 
+  ExternalLink, 
+  ArrowLeft,
+  Volume2,
+  ShieldCheck,
+  ShieldAlert,
+  LayoutTemplate,
+  Sparkles,
+  Camera,
+  Sliders,
+  Palette,
+  Share2,
+  Film,
+  Play,
+  Pause,
+  Upload,
+  X,
+  GitBranch,
+  Smartphone,
+  RefreshCw,
+  Users,
+  BarChart3,
+  Activity,
+  Download,
+  TrendingUp,
+  Calendar,
+  Pencil,
+  Save,
+  RotateCcw,
+  FolderPlus,
+  FolderInput,
+  Search,
+  CheckSquare,
+  Square
+} from 'lucide-react';
+import { FeedImage, StreamItem, AudioTrack, HeroImage, SiteSettings } from '@/types';
+import { ENABLE_ADMIN_ACCESS, ADMIN_PASSCODE } from '@/config/adminAccess';
+import ImageFileInput from '@/components/ImageFileInput';
+import BulkUploadPanel from '@/components/admin/BulkUploadPanel';
+import EditImageModal from '@/components/admin/EditImageModal';
+
+export default function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [passcode, setPasscode] = useState<string>('');
+  const [authError, setAuthError] = useState<string>('');
+
+  const [activeTab, setActiveTab] = useState<'images' | 'hero' | 'streams' | 'audio' | 'logo' | 'analytics'>('images');
+  
+  // Data states
+  const [analytics, setAnalytics] = useState<{
+    today: string;
+    todayVisitors: number;
+    todayPageViews: number;
+    yesterday: string;
+    yesterdayVisitors: number;
+    yesterdayPageViews: number;
+    totalVisitors: number;
+    totalPageViews: number;
+    totalImageViews: number;
+    totalImageDownloads: number;
+    history: Array<{ date: string; unique: number; total: number }>;
+  } | null>(null);
+  const [isRefreshingAnalytics, setIsRefreshingAnalytics] = useState(false);
+  const [images, setImages] = useState<FeedImage[]>([]);
+  const [streams, setStreams] = useState<StreamItem[]>([]);
+  const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
+  const [heroImages, setHeroImages] = useState<HeroImage[]>([]);
+  const [platformNameInput, setPlatformNameInput] = useState<string>('Rahy Ishq');
+  const [logoInputUrl, setLogoInputUrl] = useState<string>('');
+  const [hideSiteNameInput, setHideSiteNameInput] = useState<boolean>(false);
+  const [musicIconInputUrl, setMusicIconInputUrl] = useState<string>('');
+  const [waveColorInput, setWaveColorInput] = useState<string>('#84cc16');
+  const [homeBgInputUrl, setHomeBgInputUrl] = useState<string>('');
+  const [navbarColorInput, setNavbarColorInput] = useState<string>('#ffffff');
+  const [navbarOpacityInput, setNavbarOpacityInput] = useState<number>(75);
+  const [navbarBlurInput, setNavbarBlurInput] = useState<number>(12);
+  const [facebookInputUrl, setFacebookInputUrl] = useState<string>('https://facebook.com');
+  const [whatsappInputUrl, setWhatsappInputUrl] = useState<string>('https://wa.me');
+  const [instagramInputUrl, setInstagramInputUrl] = useState<string>('https://instagram.com');
+  const [tiktokInputUrl, setTiktokInputUrl] = useState<string>('https://tiktok.com');
+  const [footerEnglishInput, setFooterEnglishInput] = useState<string>('Preserving the photographic, calligraphic, and manuscript heritage of Hazrat Sufi Abu Anees Muhammad Barkat Ali (رحمۃ اللہ علیہ).');
+  const [footerArabicInput, setFooterArabicInput] = useState<string>('خدمتِ خلق • ذکرِ الٰہی • نشرِ قرآن مجید');
+  const [dupWarningCount, setDupWarningCount] = useState<number>(0);
+  const [dupWarningUrl, setDupWarningUrl] = useState<string>('');
+  const [isSavingLogo, setIsSavingLogo] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [syncStatus, setSyncStatus] = useState<{ isConfigured: boolean; owner?: string; repo?: string; branch?: string } | null>(null);
+
+  // Staged Batch Save State (1-click Save All Changes -> 1 GitHub push)
+  const [savedSnapshot, setSavedSnapshot] = useState<{
+    images: FeedImage[];
+    streams: StreamItem[];
+    heroImages: HeroImage[];
+    audioTracks: AudioTrack[];
+    settings: SiteSettings;
+  } | null>(null);
+  const [isSavingAll, setIsSavingAll] = useState<boolean>(false);
+  const [localPreviewMap, setLocalPreviewMap] = useState<Record<string, string>>({});
+
+  // Images Tab: Upload mode, Multi-select, Bulk Folder & Edit Modal
+  const [imageAddMode, setImageAddMode] = useState<'single' | 'bulk'>('single');
+  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
+  const [bulkTargetFolderId, setBulkTargetFolderId] = useState<string>('');
+  const [quickFolderName, setQuickFolderName] = useState<string>('');
+  const [showQuickFolderInput, setShowQuickFolderInput] = useState<boolean>(false);
+  const [editingImage, setEditingImage] = useState<FeedImage | null>(null);
+  const [registrySearch, setRegistrySearch] = useState<string>('');
+  const [registryFolderFilter, setRegistryFolderFilter] = useState<string>('all');
+
+  // Form states: New Image
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageTitle, setImageTitle] = useState('');
+  const [imageRefNumber, setImageRefNumber] = useState('');
+  const [imageAdminNotes, setImageAdminNotes] = useState('');
+  const [imageTags, setImageTags] = useState('');
+  const [selectedStreams, setSelectedStreams] = useState<string[]>([]);
+  const [imageDescription, setImageDescription] = useState('');
+  const [imageAspectRatio, setImageAspectRatio] = useState<'landscape' | 'portrait' | 'square'>('landscape');
+  const [isSubmittingImage, setIsSubmittingImage] = useState(false);
+
+  // Form states: New Hero Media (Image or Video)
+  const [heroMediaType, setHeroMediaType] = useState<'image' | 'video'>('image');
+  const [heroUrl, setHeroUrl] = useState('');
+  const [heroTitle, setHeroTitle] = useState('');
+  const [heroAudioUrl, setHeroAudioUrl] = useState('');
+  const [isSubmittingHero, setIsSubmittingHero] = useState(false);
+  const [activePreviewAudio, setActivePreviewAudio] = useState<string | null>(null);
+  const adminAudioPreviewRef = useRef<HTMLAudioElement | null>(null);
+
+  // Form states: New Stream
+  const [streamTitle, setStreamTitle] = useState('');
+  const [streamDescription, setStreamDescription] = useState('');
+  const [isSubmittingStream, setIsSubmittingStream] = useState(false);
+
+  // Form states: New Audio
+  const [audioTitle, setAudioTitle] = useState('');
+  const [audioUrl, setAudioUrl] = useState('');
+  const [audioArtist, setAudioArtist] = useState('');
+  const [isSubmittingAudio, setIsSubmittingAudio] = useState(false);
+
+  // Build current settings object from form inputs
+  const currentSettingsObj: SiteSettings = useMemo(
+    () => ({
+      platformName: platformNameInput,
+      logoUrl: logoInputUrl,
+      hideSiteName: hideSiteNameInput,
+      musicIconUrl: musicIconInputUrl,
+      waveColor: waveColorInput,
+      homeBgImageUrl: homeBgInputUrl,
+      navbarColor: navbarColorInput,
+      navbarOpacity: Number(navbarOpacityInput),
+      navbarBlur: Number(navbarBlurInput),
+      facebookUrl: facebookInputUrl,
+      whatsappUrl: whatsappInputUrl,
+      instagramUrl: instagramInputUrl,
+      tiktokUrl: tiktokInputUrl,
+      footerEnglishText: footerEnglishInput,
+      footerArabicText: footerArabicInput,
+    }),
+    [
+      platformNameInput,
+      logoInputUrl,
+      hideSiteNameInput,
+      musicIconInputUrl,
+      waveColorInput,
+      homeBgInputUrl,
+      navbarColorInput,
+      navbarOpacityInput,
+      navbarBlurInput,
+      facebookInputUrl,
+      whatsappInputUrl,
+      instagramInputUrl,
+      tiktokInputUrl,
+      footerEnglishInput,
+      footerArabicInput,
+    ]
+  );
+
+  // Track pending unsaved changes across the entire Admin Panel
+  const pendingChanges = useMemo(() => {
+    if (!savedSnapshot) {
+      return {
+        addedImageIds: new Set<string>(),
+        editedImageIds: new Set<string>(),
+        deletedImagesCount: 0,
+        streamsChanged: false,
+        heroChanged: false,
+        audioChanged: false,
+        settingsChanged: false,
+        totalChanges: 0,
+        hasUnsavedChanges: false,
+        summaryParts: [] as string[],
+      };
+    }
+
+    const savedImgMap = new Map(savedSnapshot.images.map((img) => [img.id, img]));
+    const currentImgIds = new Set(images.map((img) => img.id));
+    const addedImageIds = new Set<string>();
+    const editedImageIds = new Set<string>();
+
+    for (const img of images) {
+      const prev = savedImgMap.get(img.id);
+      if (!prev) {
+        addedImageIds.add(img.id);
+      } else if (JSON.stringify(prev) !== JSON.stringify(img)) {
+        editedImageIds.add(img.id);
+      }
+    }
+
+    let deletedImagesCount = 0;
+    for (const prev of savedSnapshot.images) {
+      if (!currentImgIds.has(prev.id)) deletedImagesCount++;
+    }
+
+    const streamsChanged = JSON.stringify(savedSnapshot.streams) !== JSON.stringify(streams);
+    const heroChanged = JSON.stringify(savedSnapshot.heroImages) !== JSON.stringify(heroImages);
+    const audioChanged = JSON.stringify(savedSnapshot.audioTracks) !== JSON.stringify(audioTracks);
+    const settingsChanged = JSON.stringify(savedSnapshot.settings) !== JSON.stringify(currentSettingsObj);
+
+    const summaryParts: string[] = [];
+    if (addedImageIds.size > 0) summaryParts.push(`${addedImageIds.size} new image${addedImageIds.size > 1 ? 's' : ''}`);
+    if (editedImageIds.size > 0) summaryParts.push(`${editedImageIds.size} edited`);
+    if (deletedImagesCount > 0) summaryParts.push(`${deletedImagesCount} deleted`);
+    if (streamsChanged) summaryParts.push('folders updated');
+    if (heroChanged) summaryParts.push('hero updated');
+    if (audioChanged) summaryParts.push('audio updated');
+    if (settingsChanged) summaryParts.push('appearance updated');
+
+    const totalChanges =
+      addedImageIds.size +
+      editedImageIds.size +
+      deletedImagesCount +
+      (streamsChanged ? 1 : 0) +
+      (heroChanged ? 1 : 0) +
+      (audioChanged ? 1 : 0) +
+      (settingsChanged ? 1 : 0);
+
+    return {
+      addedImageIds,
+      editedImageIds,
+      deletedImagesCount,
+      streamsChanged,
+      heroChanged,
+      audioChanged,
+      settingsChanged,
+      totalChanges,
+      hasUnsavedChanges: totalChanges > 0,
+      summaryParts,
+    };
+  }, [savedSnapshot, images, streams, heroImages, audioTracks, currentSettingsObj]);
+
+  // Filtered registry images for search & folder filter
+  const filteredRegistryImages = useMemo(() => {
+    let list = images;
+    if (registryFolderFilter === '__none__') {
+      list = list.filter((img) => !img.streamIds || img.streamIds.length === 0);
+    } else if (registryFolderFilter !== 'all') {
+      list = list.filter((img) => img.streamIds?.includes(registryFolderFilter));
+    }
+
+    const q = registrySearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (img) =>
+          img.title?.toLowerCase().includes(q) ||
+          img.referenceNumber?.toLowerCase().includes(q) ||
+          img.description?.toLowerCase().includes(q) ||
+          img.tags?.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [images, registryFolderFilter, registrySearch]);
+
+  // Warn before leaving if there are unsaved staged changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (pendingChanges.hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [pendingChanges.hasUnsavedChanges]);
+
+  // Check initial authentication
+  useEffect(() => {
+    const savedAuth = sessionStorage.getItem('darulehsan_admin_auth');
+    if (savedAuth === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const applySettingsToInputs = (s: SiteSettings) => {
+    const resolved: SiteSettings = {
+      platformName: s.platformName !== undefined ? s.platformName : 'Rahy Ishq',
+      logoUrl: s.logoUrl || '',
+      hideSiteName: Boolean(s.hideSiteName),
+      musicIconUrl: s.musicIconUrl || '',
+      waveColor: s.waveColor || '#84cc16',
+      homeBgImageUrl: s.homeBgImageUrl || '',
+      navbarColor: s.navbarColor || '#ffffff',
+      navbarOpacity: s.navbarOpacity !== undefined ? s.navbarOpacity : 75,
+      navbarBlur: s.navbarBlur !== undefined ? s.navbarBlur : 12,
+      facebookUrl: s.facebookUrl || 'https://facebook.com',
+      whatsappUrl: s.whatsappUrl || 'https://wa.me',
+      instagramUrl: s.instagramUrl || 'https://instagram.com',
+      tiktokUrl: s.tiktokUrl || 'https://tiktok.com',
+      footerEnglishText:
+        s.footerEnglishText !== undefined
+          ? s.footerEnglishText
+          : 'Preserving the photographic, calligraphic, and manuscript heritage of Hazrat Sufi Abu Anees Muhammad Barkat Ali (رحمۃ اللہ علیہ).',
+      footerArabicText:
+        s.footerArabicText !== undefined
+          ? s.footerArabicText
+          : 'خدمتِ خلق • ذکرِ الٰہی • نشرِ قرآن مجید',
+    };
+
+    setPlatformNameInput(resolved.platformName || 'Rahy Ishq');
+    setLogoInputUrl(resolved.logoUrl || '');
+    setHideSiteNameInput(Boolean(resolved.hideSiteName));
+    setMusicIconInputUrl(resolved.musicIconUrl || '');
+    setWaveColorInput(resolved.waveColor || '#84cc16');
+    setHomeBgInputUrl(resolved.homeBgImageUrl || '');
+    setNavbarColorInput(resolved.navbarColor || '#ffffff');
+    setNavbarOpacityInput(resolved.navbarOpacity ?? 75);
+    setNavbarBlurInput(resolved.navbarBlur ?? 12);
+    setFacebookInputUrl(resolved.facebookUrl || 'https://facebook.com');
+    setWhatsappInputUrl(resolved.whatsappUrl || 'https://wa.me');
+    setInstagramInputUrl(resolved.instagramUrl || 'https://instagram.com');
+    setTiktokInputUrl(resolved.tiktokUrl || 'https://tiktok.com');
+    setFooterEnglishInput(resolved.footerEnglishText || '');
+    setFooterArabicInput(resolved.footerArabicText || '');
+    return resolved;
+  };
+
+  // Fetch all admin data
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [imagesRes, streamsRes, audioRes, heroRes, settingsRes, syncRes, analyticsRes] = await Promise.all([
+        fetch('/api/images?admin=true', { cache: 'no-store' }),
+        fetch('/api/streams', { cache: 'no-store' }),
+        fetch('/api/audio', { cache: 'no-store' }),
+        fetch('/api/hero-images', { cache: 'no-store' }),
+        fetch('/api/settings', { cache: 'no-store' }),
+        fetch('/api/sync-status', { cache: 'no-store' }),
+        fetch('/api/analytics', { cache: 'no-store' }),
+      ]);
+
+      const loadedImages: FeedImage[] = imagesRes.ok ? await imagesRes.json() : [];
+      const loadedStreams: StreamItem[] = streamsRes.ok ? await streamsRes.json() : [];
+      const loadedAudio: AudioTrack[] = audioRes.ok ? await audioRes.json() : [];
+      const loadedHero: HeroImage[] = heroRes.ok ? await heroRes.json() : [];
+      if (syncRes.ok) setSyncStatus(await syncRes.json());
+      if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
+      const rawSettings: SiteSettings = settingsRes.ok ? await settingsRes.json() : {};
+      const resolvedSettings = applySettingsToInputs(rawSettings);
+
+      setImages(loadedImages);
+      setStreams(loadedStreams);
+      setAudioTracks(loadedAudio);
+      setHeroImages(loadedHero);
+      setSelectedImageIds([]);
+      setBulkTargetFolderId((prev) => prev || loadedStreams[0]?.id || '');
+
+      setSavedSnapshot({
+        images: structuredClone(loadedImages),
+        streams: structuredClone(loadedStreams),
+        heroImages: structuredClone(loadedHero),
+        audioTracks: structuredClone(loadedAudio),
+        settings: structuredClone(resolvedSettings),
+      });
+    } catch (e) {
+      console.error('Failed to load admin data:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRefreshAnalytics = async () => {
+    setIsRefreshingAnalytics(true);
+    try {
+      const res = await fetch('/api/analytics');
+      if (res.ok) {
+        setAnalytics(await res.json());
+        showNotify('success', 'Daily visitor statistics refreshed.');
+      }
+    } catch {
+      showNotify('error', 'Failed to refresh statistics.');
+    } finally {
+      setIsRefreshingAnalytics(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchData();
+    }
+  }, [isAuthenticated]);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passcode === ADMIN_PASSCODE || passcode === 'admin123') {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('darulehsan_admin_auth', 'true');
+      setAuthError('');
+    } else {
+      setAuthError('Invalid passcode. Default passcode is: darulehsan');
+    }
+  };
+
+  const showNotify = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  // ONE-CLICK SAVE ALL CHANGES & PUSH db.json TO GITHUB
+  const handleSaveAllChanges = async () => {
+    setIsSavingAll(true);
+    setIsSavingLogo(true);
+    try {
+      const summary = pendingChanges.summaryParts.join(', ') || 'Sync all admin updates';
+      const res = await fetch('/api/admin/save-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          images,
+          streams,
+          heroImages,
+          audioTracks,
+          settings: currentSettingsObj,
+          commitMessage: `chore(admin): ${summary}`,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        showNotify('error', data?.error || 'Failed to save changes.');
+        return;
+      }
+
+      const nextImages: FeedImage[] = Array.isArray(data.images) ? data.images : images;
+      const nextHero: HeroImage[] = Array.isArray(data.heroImages) ? data.heroImages : heroImages;
+      const nextSettings: SiteSettings = data.settings ? applySettingsToInputs(data.settings) : currentSettingsObj;
+
+      setImages(nextImages);
+      setHeroImages(nextHero);
+      setSavedSnapshot({
+        images: structuredClone(nextImages),
+        streams: structuredClone(streams),
+        heroImages: structuredClone(nextHero),
+        audioTracks: structuredClone(audioTracks),
+        settings: structuredClone(nextSettings),
+      });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site-settings-updated'));
+      }
+
+      if (data.syncedToGitHub) {
+        const filesNote = data.uploadedFilesCount > 0 ? ` + ${data.uploadedFilesCount} image file(s)` : '';
+        showNotify(
+          'success',
+          `🚀 Saved & pushed db.json${filesNote} to GitHub in 1 single commit! Live site updates in ~45s.`
+        );
+      } else if (data.githubError) {
+        showNotify(
+          'error',
+          `⚠️ Saved locally, but GitHub push failed: ${data.githubError}`
+        );
+      } else {
+        showNotify('success', 'All changes saved locally to db.json!');
+      }
+    } catch (err: any) {
+      showNotify('error', err.message || 'Network error while pushing changes.');
+    } finally {
+      setIsSavingAll(false);
+      setIsSavingLogo(false);
+    }
+  };
+
+  // Discard unsaved staged changes
+  const handleDiscardChanges = () => {
+    if (!savedSnapshot) return;
+    if (!confirm('Discard all unsaved changes and revert to the last saved state?')) return;
+    setImages(structuredClone(savedSnapshot.images));
+    setStreams(structuredClone(savedSnapshot.streams));
+    setHeroImages(structuredClone(savedSnapshot.heroImages));
+    setAudioTracks(structuredClone(savedSnapshot.audioTracks));
+    applySettingsToInputs(savedSnapshot.settings);
+    setSelectedImageIds([]);
+    showNotify('success', 'Unsaved changes discarded.');
+  };
+
+  // Auto-generate reference number
+  const handleAutoGenerateRef = () => {
+    const randomSuffix = Math.floor(100 + Math.random() * 900);
+    setImageRefNumber(`DUE-REF-${randomSuffix}`);
+  };
+
+  // Handle Stream Selection Toggle
+  const toggleStreamSelection = (streamId: string) => {
+    setSelectedStreams((prev) =>
+      prev.includes(streamId)
+        ? prev.filter((id) => id !== streamId)
+        : [...prev, streamId]
+    );
+  };
+
+  // Submit Brand Logo & Appearance Settings (triggers 1-button Save All)
+  const handleSaveLogo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleSaveAllChanges();
+  };
+
+  // Clear Brand Logo (staged)
+  const handleClearLogo = () => {
+    setLogoInputUrl('');
+    showNotify('success', 'Brand logo cleared in draft. Click "Save All Changes" to push.');
+  };
+
+  // Stage Single Image locally (does NOT push individually to GitHub!)
+  const handleAddImage = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedUrl = imageUrl.trim();
+    if (!trimmedUrl || !imageTitle.trim()) {
+      showNotify('error', 'Please provide at least Image Link and Image Title.');
+      return;
+    }
+
+    // Check if image link already exists in database
+    const linkAlreadyExists = images.some(
+      (img) => img.url.trim().toLowerCase() === trimmedUrl.toLowerCase()
+    );
+
+    if (linkAlreadyExists) {
+      const currentCount = dupWarningUrl === trimmedUrl ? dupWarningCount : 0;
+      if (currentCount < 3) {
+        const nextCount = currentCount + 1;
+        setDupWarningUrl(trimmedUrl);
+        setDupWarningCount(nextCount);
+        if (nextCount === 1) {
+          showNotify('error', '⚠️ Duplicate Link Warning (1 of 3): This image link already exists. Click again to proceed.');
+        } else if (nextCount === 2) {
+          showNotify('error', '⚠️ Duplicate Link Warning (2 of 3): This image link already exists. Click 1 more time to confirm.');
+        } else if (nextCount === 3) {
+          showNotify('error', '⚠️ Duplicate Link Warning (3 of 3 - Final Warning): Click once more to force accept.');
+        }
+        return;
+      }
+    }
+
+    setIsSubmittingImage(true);
+    try {
+      const processedTags = imageTags
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      const id = `img-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      const newImage: FeedImage = {
+        id,
+        url: trimmedUrl,
+        title: imageTitle.trim(),
+        referenceNumber: imageRefNumber.trim() || `REF-${Date.now().toString().slice(-4)}`,
+        adminNotes: imageAdminNotes.trim() || undefined,
+        tags: processedTags,
+        streamIds: [...selectedStreams],
+        description: imageDescription.trim(),
+        dateAdded: new Date().toISOString().split('T')[0],
+        aspectRatio: imageAspectRatio,
+      };
+
+      if (trimmedUrl.startsWith('data:image/')) {
+        setLocalPreviewMap((prev) => ({ ...prev, [id]: trimmedUrl }));
+      }
+
+      setImages((prev) => [newImage, ...prev]);
+      setImageUrl('');
+      setImageTitle('');
+      setImageRefNumber('');
+      setImageAdminNotes('');
+      setImageTags('');
+      setSelectedStreams([]);
+      setImageDescription('');
+      setImageAspectRatio('landscape');
+      setDupWarningCount(0);
+      setDupWarningUrl('');
+
+      showNotify(
+        'success',
+        'Image added to pending list! Upload more or click "Save All Changes" to push to GitHub in 1 commit.'
+      );
+    } finally {
+      setIsSubmittingImage(false);
+    }
+  };
+
+  // Stage Bulk Images from BulkUploadPanel
+  const handleStageBulkImages = (newImages: FeedImage[], previewMap?: Record<string, string>) => {
+    if (previewMap && Object.keys(previewMap).length > 0) {
+      setLocalPreviewMap((prev) => ({ ...prev, ...previewMap }));
+    }
+    setImages((prev) => [...newImages, ...prev]);
+    showNotify(
+      'success',
+      `${newImages.length} image(s) staged! Click "Save All Changes & Push to GitHub" when ready.`
+    );
+  };
+
+  // Save Edited Image from EditImageModal (staged)
+  const handleSaveEditedImage = (updated: FeedImage, newPreviewDataUrl?: string) => {
+    if (newPreviewDataUrl) {
+      setLocalPreviewMap((prev) => ({ ...prev, [updated.id]: newPreviewDataUrl }));
+    }
+    setImages((prev) => prev.map((img) => (img.id === updated.id ? updated : img)));
+    setEditingImage(null);
+    showNotify('success', `Updated "${updated.title}" in pending list. Click "Save All Changes" to push.`);
+  };
+
+  // Delete Single Image (staged)
+  const handleDeleteImage = (id: string) => {
+    if (!confirm('Remove this image? (Will push to GitHub when you click Save All Changes)')) return;
+    setImages((prev) => prev.filter((img) => img.id !== id));
+    setSelectedImageIds((prev) => prev.filter((sid) => sid !== id));
+    showNotify('success', 'Image removed from pending list.');
+  };
+
+  // Multi-select helpers
+  const toggleImageSelected = (id: string) => {
+    setSelectedImageIds((prev) =>
+      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]
+    );
+  };
+
+  const allVisibleSelected =
+    filteredRegistryImages.length > 0 &&
+    filteredRegistryImages.every((img) => selectedImageIds.includes(img.id));
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      const visibleSet = new Set(filteredRegistryImages.map((img) => img.id));
+      setSelectedImageIds((prev) => prev.filter((id) => !visibleSet.has(id)));
+    } else {
+      const merged = new Set([...selectedImageIds, ...filteredRegistryImages.map((img) => img.id)]);
+      setSelectedImageIds(Array.from(merged));
+    }
+  };
+
+  // Bulk 1-Click Delete Selected Images (staged)
+  const handleBulkDeleteSelected = () => {
+    if (selectedImageIds.length === 0) return;
+    if (
+      !confirm(
+        `Delete ${selectedImageIds.length} selected image(s)? Changes won't push to GitHub until you click "Save All Changes".`
+      )
+    ) {
+      return;
+    }
+    const delSet = new Set(selectedImageIds);
+    setImages((prev) => prev.filter((img) => !delSet.has(img.id)));
+    setSelectedImageIds([]);
+    showNotify('success', `${delSet.size} image(s) deleted from pending list.`);
+  };
+
+  // Bulk 1-Click Add Selected Images to Folder / Stream (staged)
+  const handleBulkAddToFolder = (folderId?: string) => {
+    const targetId = folderId || bulkTargetFolderId;
+    if (selectedImageIds.length === 0) return;
+    if (!targetId) {
+      showNotify('error', 'Please choose a folder / stream first.');
+      return;
+    }
+
+    const folderObj = streams.find((s) => s.id === targetId);
+    const selSet = new Set(selectedImageIds);
+    setImages((prev) =>
+      prev.map((img) => {
+        if (!selSet.has(img.id)) return img;
+        const current = img.streamIds || [];
+        if (current.includes(targetId)) return img;
+        return { ...img, streamIds: [...current, targetId] };
+      })
+    );
+    showNotify(
+      'success',
+      `Added ${selSet.size} image(s) to folder "${folderObj?.title || targetId}". Click "Save All Changes" to push.`
+    );
+  };
+
+  // Bulk 1-Click Remove Selected Images from Folder / Stream (staged)
+  const handleBulkRemoveFromFolder = () => {
+    if (selectedImageIds.length === 0 || !bulkTargetFolderId) return;
+    const folderObj = streams.find((s) => s.id === bulkTargetFolderId);
+    const selSet = new Set(selectedImageIds);
+    setImages((prev) =>
+      prev.map((img) => {
+        if (!selSet.has(img.id)) return img;
+        return {
+          ...img,
+          streamIds: (img.streamIds || []).filter((id) => id !== bulkTargetFolderId),
+        };
+      })
+    );
+    showNotify(
+      'success',
+      `Removed ${selSet.size} image(s) from folder "${folderObj?.title || bulkTargetFolderId}".`
+    );
+  };
+
+  // Quick-create a new folder right from the Bulk Toolbar and add selected images to it
+  const handleQuickCreateAndAddFolder = () => {
+    const title = quickFolderName.trim();
+    if (!title) {
+      showNotify('error', 'Enter a folder name first.');
+      return;
+    }
+    const slug =
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') || `stream-${Date.now()}`;
+    const newFolder: StreamItem = {
+      id: `stream-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      title,
+      slug,
+      createdAt: new Date().toISOString(),
+    };
+    setStreams((prev) => [...prev, newFolder]);
+    setBulkTargetFolderId(newFolder.id);
+    setQuickFolderName('');
+    setShowQuickFolderInput(false);
+
+    if (selectedImageIds.length > 0) {
+      const selSet = new Set(selectedImageIds);
+      setImages((prev) =>
+        prev.map((img) =>
+          selSet.has(img.id) ? { ...img, streamIds: [...(img.streamIds || []), newFolder.id] } : img
+        )
+      );
+      showNotify('success', `Created folder "${title}" and added ${selSet.size} selected image(s) to it!`);
+    } else {
+      showNotify('success', `Created folder "${title}" in pending list.`);
+    }
+  };
+
+  // Audio preview helper for admin testing
+  const toggleAudioPreview = (url: string) => {
+    if (!adminAudioPreviewRef.current) return;
+    const player = adminAudioPreviewRef.current;
+    if (activePreviewAudio === url && !player.paused) {
+      player.pause();
+      setActivePreviewAudio(null);
+    } else {
+      player.src = url;
+      player.load();
+      player.play()
+        .then(() => {
+          setActivePreviewAudio(url);
+        })
+        .catch(() => {
+          showNotify('error', 'Could not play audio preview. Verify the link/file.');
+        });
+    }
+  };
+
+  // Stage Hero Media (Image or Video with optional separate audio)
+  const handleAddHero = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!heroUrl.trim()) {
+      showNotify('error', 'Hero Media (URL or file) is required.');
+      return;
+    }
+
+    setIsSubmittingHero(true);
+    try {
+      const trimmedUrl = heroUrl.trim();
+      const isVideo =
+        heroMediaType === 'video' ||
+        Boolean(trimmedUrl.match(/\.(mp4|webm|mov|ogg)(\?.*)?$/i)) ||
+        trimmedUrl.startsWith('data:video/');
+
+      const id = `hero-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      const newHero: HeroImage = {
+        id,
+        url: trimmedUrl,
+        mediaType: isVideo ? 'video' : 'image',
+        title: heroTitle.trim(),
+        audioUrl: heroAudioUrl.trim() || undefined,
+        dateAdded: new Date().toISOString().split('T')[0],
+      };
+
+      if (trimmedUrl.startsWith('data:image/')) {
+        setLocalPreviewMap((prev) => ({ ...prev, [id]: trimmedUrl }));
+      }
+
+      setHeroImages((prev) => [newHero, ...prev]);
+      setHeroUrl('');
+      setHeroTitle('');
+      setHeroAudioUrl('');
+      setHeroMediaType('image');
+      if (adminAudioPreviewRef.current) {
+        adminAudioPreviewRef.current.pause();
+        setActivePreviewAudio(null);
+      }
+      showNotify('success', 'Hero media added to pending list! Click "Save All Changes" to push.');
+    } finally {
+      setIsSubmittingHero(false);
+    }
+  };
+
+  // Delete Hero Image (staged)
+  const handleDeleteHero = (id: string) => {
+    if (!confirm('Remove this hero media?')) return;
+    setHeroImages((prev) => prev.filter((h) => h.id !== id));
+    showNotify('success', 'Hero media removed from pending list.');
+  };
+
+  // Stage Stream / Folder
+  const handleAddStream = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!streamTitle.trim()) {
+      showNotify('error', 'Folder / Stream Title is required.');
+      return;
+    }
+
+    setIsSubmittingStream(true);
+    try {
+      const trimmedTitle = streamTitle.trim();
+      const slug =
+        trimmedTitle
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '') || `stream-${Date.now()}`;
+
+      const newStream: StreamItem = {
+        id: `stream-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        title: trimmedTitle,
+        slug,
+        description: streamDescription.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      };
+
+      setStreams((prev) => [...prev, newStream]);
+      if (!bulkTargetFolderId) setBulkTargetFolderId(newStream.id);
+      setStreamTitle('');
+      setStreamDescription('');
+      showNotify('success', `Folder "${trimmedTitle}" created in pending list!`);
+    } finally {
+      setIsSubmittingStream(false);
+    }
+  };
+
+  // Delete Stream / Folder (staged)
+  const handleDeleteStream = (id: string) => {
+    if (!confirm('Delete this folder / stream? Images inside will remain in your library.')) return;
+    setStreams((prev) => prev.filter((s) => s.id !== id));
+    setImages((prev) =>
+      prev.map((img) => ({
+        ...img,
+        streamIds: (img.streamIds || []).filter((sid) => sid !== id),
+      }))
+    );
+    if (bulkTargetFolderId === id) setBulkTargetFolderId('');
+    showNotify('success', 'Folder / stream removed from pending list.');
+  };
+
+  // Stage Audio
+  const handleAddAudio = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!audioTitle.trim() || !audioUrl.trim()) {
+      showNotify('error', 'Audio Title and Audio Link/Path are required.');
+      return;
+    }
+
+    setIsSubmittingAudio(true);
+    try {
+      const newTrack: AudioTrack = {
+        id: `track-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        title: audioTitle.trim(),
+        url: audioUrl.trim(),
+        artist: audioArtist.trim() || 'Dar-ul-Ehsan Ambient',
+        duration: '0:30',
+        dateAdded: new Date().toISOString().split('T')[0],
+      };
+      setAudioTracks((prev) => [newTrack, ...prev]);
+      setAudioTitle('');
+      setAudioUrl('');
+      setAudioArtist('');
+      showNotify('success', 'Audio track added to pending list!');
+    } finally {
+      setIsSubmittingAudio(false);
+    }
+  };
+
+  // Delete Audio (staged)
+  const handleDeleteAudio = (id: string) => {
+    if (!confirm('Remove this track from background playlist?')) return;
+    setAudioTracks((prev) => prev.filter((t) => t.id !== id));
+    showNotify('success', 'Audio track removed from pending list.');
+  };
+
+  // If Admin access is disabled globally via config
+  if (!ENABLE_ADMIN_ACCESS) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center p-6 bg-white">
+        <div className="max-w-md w-full bg-neutral-50 border border-neutral-200 rounded-3xl p-8 text-center">
+          <ShieldAlert className="w-12 h-12 text-neutral-400 mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-neutral-900 mb-2">Admin Portal Disabled</h1>
+          <p className="text-sm text-neutral-500 mb-6">
+            Access to the admin panel has been locked for this deployment or GitHub upload.
+          </p>
+          <Link
+            href="/"
+            prefetch={false}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white text-xs font-semibold rounded-full"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Return to Public Feed</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Passcode Gate if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-[75vh] flex items-center justify-center p-6 bg-white">
+        <div className="max-w-md w-full bg-white border border-neutral-200 rounded-3xl p-8 shadow-sm">
+          <div className="text-center mb-6">
+            <div className="w-12 h-12 rounded-2xl bg-neutral-900 text-white mx-auto flex items-center justify-center mb-3">
+              <Lock className="w-5 h-5" />
+            </div>
+            <h1 className="text-xl font-bold text-neutral-900">Separate Admin Portal</h1>
+            <p className="text-xs text-neutral-500 mt-1">
+              Isolated backend for managing streams, hero images, archival images, brand logo, and audio.
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                Admin Passcode
+              </label>
+              <input
+                type="password"
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                placeholder="Enter admin passcode..."
+                className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                autoFocus
+              />
+              <p className="text-[11px] text-neutral-400 mt-1">
+                Default test passcode: <code className="bg-neutral-100 px-1 py-0.5 rounded">darulehsan</code>
+              </p>
+            </div>
+
+            {authError && (
+              <div className="text-xs text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-100">
+                {authError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold rounded-xl transition-colors shadow-xs"
+            >
+              Unlock Admin Portal
+            </button>
+          </form>
+
+          <div className="mt-6 pt-6 border-t border-neutral-100 text-center">
+            <Link
+              href="/"
+              prefetch={false}
+              className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors"
+            >
+              ← Back to public website
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-10 bg-white min-h-screen">
+      
+      {/* Admin Header with Mobile-Ready Layout */}
+      <div className="pb-5 sm:pb-6 mb-6 sm:mb-8 border-b border-neutral-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="bg-neutral-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                Isolated Backend
+              </span>
+              <span className="text-[11px] sm:text-xs text-neutral-400">• Unlinked from Frontend UI</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 tracking-tight">
+              Admin Content & Stream Management
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3 self-stretch sm:self-auto">
+            <Link
+              href="/"
+              target="_blank"
+              prefetch={false}
+              className="flex-1 sm:flex-none justify-center inline-flex items-center gap-1.5 px-3.5 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-medium rounded-full transition-colors"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Preview Public Feed</span>
+              <ExternalLink className="w-3 h-3 opacity-60" />
+            </Link>
+
+            <button
+              onClick={() => {
+                sessionStorage.removeItem('darulehsan_admin_auth');
+                setIsAuthenticated(false);
+              }}
+              className="px-3.5 py-2 border border-neutral-200 hover:bg-neutral-50 text-neutral-600 text-xs font-medium rounded-full transition-colors cursor-pointer"
+            >
+              Lock & Logout
+            </button>
+          </div>
+        </div>
+
+        {/* Live GitHub Batch Sync & 1-Button Save All Bar */}
+        <div className="mt-4 space-y-3">
+          {syncStatus?.isConfigured ? (
+            <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-600 text-white flex-shrink-0 shadow-xs">
+                  <GitBranch className="w-4 h-4" />
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border-2 border-white rounded-full animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-emerald-950">GitHub 1-Push Batch Sync Ready</span>
+                    <span className="font-mono text-[10px] sm:text-[11px] bg-white text-emerald-800 font-semibold px-2 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
+                      {syncStatus.owner}/{syncStatus.repo} ({syncStatus.branch})
+                    </span>
+                  </div>
+                  <p className="text-emerald-700 text-[11px] mt-0.5">
+                    Upload/edit/organize all images first, then click <strong>Save All Changes</strong> to push <code className="bg-emerald-100 px-1 rounded">db.json</code> to GitHub in <strong>1 single commit</strong>—saving Cloudflare daily build limits!
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-medium">
+                  <Smartphone className="w-3 h-3" />
+                  <span>1-Push Mode</span>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-amber-500 text-white flex-shrink-0 shadow-xs">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-amber-950">GitHub Live Push Inactive</span>
+                    <span className="text-[10px] sm:text-[11px] bg-white text-amber-800 font-semibold px-2 py-0.5 rounded-full border border-amber-200">
+                      GITHUB_TOKEN Not Detected
+                    </span>
+                  </div>
+                  <p className="text-amber-800 text-[11px] mt-0.5">
+                    Online saves cannot commit to GitHub until <strong>GITHUB_TOKEN</strong> is added to Cloudflare Pages Settings &rarr; Environment Variables (local <code className="bg-amber-100 px-1 rounded">db.json</code> saves still work locally).
+                  </p>
+                </div>
+              </div>
+              <div className="shrink-0 text-[11px] text-amber-900 font-mono bg-amber-100/80 px-2.5 py-1 rounded-lg">
+                Repo: {syncStatus?.owner || 'DawodShahzad'}/{syncStatus?.repo || 'rahyishq'}
+              </div>
+            </div>
+          )}
+
+          {/* Global Save All Changes Control Strip */}
+          <div
+            className={`rounded-2xl p-3.5 sm:p-4 border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
+              pendingChanges.hasUnsavedChanges
+                ? 'bg-neutral-900 text-white border-neutral-800 shadow-md'
+                : 'bg-neutral-50 text-neutral-700 border-neutral-200'
+            }`}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  pendingChanges.hasUnsavedChanges
+                    ? 'bg-amber-400 text-neutral-950'
+                    : 'bg-white border border-neutral-200 text-emerald-600'
+                }`}
+              >
+                {pendingChanges.hasUnsavedChanges ? (
+                  <Save className="w-4 h-4" />
+                ) : (
+                  <CheckCircle className="w-4 h-4" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs sm:text-sm font-bold">
+                    {pendingChanges.hasUnsavedChanges
+                      ? `Unsaved Pending Changes (${pendingChanges.totalChanges})`
+                      : 'All Changes Synced with Database'}
+                  </span>
+                  {pendingChanges.hasUnsavedChanges && (
+                    <span className="text-[10px] font-semibold bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full">
+                      Not pushed yet
+                    </span>
+                  )}
+                </div>
+                <p
+                  className={`text-[11px] truncate ${
+                    pendingChanges.hasUnsavedChanges ? 'text-neutral-300' : 'text-neutral-500'
+                  }`}
+                >
+                  {pendingChanges.hasUnsavedChanges
+                    ? `Pending: ${pendingChanges.summaryParts.join(' • ')}`
+                    : 'Add, upload, edit, delete, or organize images into folders—then push all in 1 click.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {pendingChanges.hasUnsavedChanges && (
+                <button
+                  type="button"
+                  onClick={handleDiscardChanges}
+                  disabled={isSavingAll}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-700 hover:bg-neutral-800 text-neutral-300 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Discard</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveAllChanges}
+                disabled={isSavingAll || !pendingChanges.hasUnsavedChanges}
+                className={`inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  pendingChanges.hasUnsavedChanges
+                    ? 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-sm'
+                    : 'bg-neutral-200 text-neutral-500'
+                }`}
+              >
+                {isSavingAll ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Pushing to GitHub...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save All Changes &amp; Push to GitHub</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      {notification && (
+        <div
+          className={`mb-6 p-3.5 sm:p-4 rounded-2xl text-xs font-medium flex items-center gap-2 ${
+            notification.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              : 'bg-red-50 text-red-800 border border-red-200'
+          }`}
+        >
+          {notification.type === 'success' ? (
+            <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+          )}
+          <span>{notification.message}</span>
+        </div>
+      )}
+
+      {/* DAILY WEBSITE VISITORS & TRAFFIC KPI HERO STRIP */}
+      <div className="mb-6 sm:mb-8 bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm border border-neutral-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-neutral-800/80">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                  Daily Website Visitors Quantity
+                </h2>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Today
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-400">
+                Audience traffic, daily unique visitors, and image interaction counts.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            <button
+              onClick={handleRefreshAnalytics}
+              disabled={isRefreshingAnalytics}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800/90 hover:bg-neutral-700 active:scale-95 text-neutral-300 text-xs font-medium rounded-full transition-all border border-neutral-700/60 cursor-pointer disabled:opacity-50"
+              title="Refresh Visitor Data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingAnalytics ? 'animate-spin text-emerald-400' : ''}`} />
+              <span>Refresh</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-full transition-all cursor-pointer ${
+                activeTab === 'analytics'
+                  ? 'bg-white text-neutral-950 font-semibold shadow-xs'
+                  : 'bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 border border-neutral-700/60'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Daily Breakdown</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Metric KPI Cards - Responsive: 2 cols on mobile, 4 cols on desktop */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          {/* Card 1: Today's Visitors Quantity */}
+          <div className="bg-neutral-900/80 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-neutral-800 hover:border-neutral-700/80 transition-colors">
+            <div className="flex items-center justify-between text-neutral-400 text-[11px] font-medium mb-1">
+              <span>Today&apos;s Visitors</span>
+              <Users className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">
+              {(analytics?.todayVisitors ?? 0).toLocaleString()}
+            </div>
+            <div className="text-[10px] text-neutral-400 mt-1 flex items-center gap-1 truncate">
+              <span className="text-emerald-400 font-semibold font-mono">
+                {analytics?.yesterdayVisitors !== undefined ? `${analytics.yesterdayVisitors} yesterday` : 'Unique visits'}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: Today's Total Page Views */}
+          <div className="bg-neutral-900/80 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-neutral-800 hover:border-neutral-700/80 transition-colors">
+            <div className="flex items-center justify-between text-neutral-400 text-[11px] font-medium mb-1">
+              <span>Today&apos;s Pageviews</span>
+              <Activity className="w-3.5 h-3.5 text-cyan-400" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">
+              {(analytics?.todayPageViews ?? 0).toLocaleString()}
+            </div>
+            <div className="text-[10px] text-neutral-400 mt-1 truncate">
+              Total hits today
+            </div>
+          </div>
+
+          {/* Card 3: Total All-Time Visitors */}
+          <div className="bg-neutral-900/80 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-neutral-800 hover:border-neutral-700/80 transition-colors">
+            <div className="flex items-center justify-between text-neutral-400 text-[11px] font-medium mb-1">
+              <span>All-Time Visitors</span>
+              <BarChart3 className="w-3.5 h-3.5 text-purple-400" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">
+              {(analytics?.totalVisitors ?? 0).toLocaleString()}
+            </div>
+            <div className="text-[10px] text-neutral-400 mt-1 truncate">
+              Unique lifetime visitors
+            </div>
+          </div>
+
+          {/* Card 4: Total Image Views & Downloads */}
+          <div className="bg-neutral-900/80 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-neutral-800 hover:border-neutral-700/80 transition-colors">
+            <div className="flex items-center justify-between text-neutral-400 text-[11px] font-medium mb-1">
+              <span>Views / Downloads</span>
+              <Download className="w-3.5 h-3.5 text-amber-400" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight flex items-baseline gap-1.5">
+              <span>{(analytics?.totalImageViews ?? 0).toLocaleString()}</span>
+              <span className="text-xs text-neutral-500 font-normal">/</span>
+              <span className="text-amber-400 text-lg sm:text-xl">{(analytics?.totalImageDownloads ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="text-[10px] text-neutral-400 mt-1 truncate">
+              Total public engagement
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* NAVIGATION TABS - MOBILE-FIRST SCROLLABLE PILL BAR */}
+      <div className="flex items-center gap-1.5 p-1.5 bg-neutral-100 rounded-2xl overflow-x-auto border border-neutral-200/80 mb-6 sm:mb-8 text-xs scrollbar-none">
+        <button
+          onClick={() => setActiveTab('images')}
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'images'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
+          }`}
+        >
+          <ImageIcon className="w-3.5 h-3.5" />
+          <span>Images ({images.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'analytics'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Daily Visitors ({analytics?.todayVisitors ?? 0})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('hero')}
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'hero'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
+          }`}
+        >
+          <LayoutTemplate className="w-3.5 h-3.5" />
+          <span>Hero ({heroImages.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('logo')}
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'logo'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
+          }`}
+        >
+          <Palette className="w-3.5 h-3.5" />
+          <span>Appearance</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('streams')}
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'streams'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>Folders / Streams ({streams.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('audio')}
+          className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'audio'
+              ? 'bg-neutral-900 text-white font-semibold shadow-xs'
+              : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/60'
+          }`}
+        >
+          <Volume2 className="w-3.5 h-3.5" />
+          <span>Music Audio ({audioTracks.length})</span>
+        </button>
+      </div>
+
+      {/* TAB 1: IMAGES MANAGEMENT & ADD FORM */}
+      {activeTab === 'images' && (
+        <div className="space-y-8 sm:space-y-12">
+          {/* Add Image Form / Bulk Online Uploader */}
+          <div className="bg-neutral-50/60 border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+              <div>
+                <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  <span>Upload &amp; Add Images Online</span>
+                </h2>
+                <p className="text-xs text-neutral-500">
+                  Add a single image or upload multiple photos/links at once. All changes stage locally until you click <strong>Save All Changes</strong>.
+                </p>
+              </div>
+
+              {/* Single vs Bulk Upload Mode Switcher */}
+              <div className="inline-flex items-center p-1 bg-neutral-200/70 rounded-xl text-xs self-start sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => setImageAddMode('single')}
+                  className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                    imageAddMode === 'single'
+                      ? 'bg-white text-neutral-900 shadow-xs'
+                      : 'text-neutral-600 hover:text-neutral-900'
+                  }`}
+                >
+                  Single Image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageAddMode('bulk')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                    imageAddMode === 'bulk'
+                      ? 'bg-neutral-900 text-white shadow-xs'
+                      : 'text-neutral-600 hover:text-neutral-900'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Bulk Upload Online</span>
+                </button>
+              </div>
+            </div>
+
+            {imageAddMode === 'bulk' ? (
+              <BulkUploadPanel
+                streams={streams}
+                onStageImages={handleStageBulkImages}
+                onNotify={showNotify}
+              />
+            ) : (
+            <form onSubmit={handleAddImage} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* 1. Image File or Link */}
+                <div className="md:col-span-2">
+                  <ImageFileInput
+                    value={imageUrl}
+                    onChange={(url, filename, detectedRatio) => {
+                      setImageUrl(url);
+                      if (detectedRatio) {
+                        setImageAspectRatio(detectedRatio);
+                      }
+                      if (dupWarningUrl !== url.trim()) {
+                        setDupWarningCount(0);
+                        setDupWarningUrl('');
+                      }
+                      // Auto-populate title if empty and filename exists
+                      if (filename && !imageTitle.trim()) {
+                        const cleanTitle = filename
+                          .replace(/\.[^/.]+$/, '')
+                          .replace(/[-_]+/g, ' ')
+                          .replace(/\b\w/g, (c) => c.toUpperCase())
+                          .trim();
+                        if (cleanTitle) setImageTitle(cleanTitle);
+                      }
+                    }}
+                    label="Image File or Direct Link"
+                    required
+                    helperText="Upload a photo from your device (auto-optimized) or provide a direct image URL link."
+                  />
+
+                  {/* Duplicate Link Warning Banner */}
+                  {dupWarningCount > 0 && dupWarningUrl === imageUrl.trim() && (
+                    <div className="mt-2.5 p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex items-center justify-between text-xs text-amber-900 shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                        <span>
+                          <strong>Duplicate Image Warning ({dupWarningCount} of 3):</strong>{' '}
+                          {dupWarningCount < 3
+                            ? `This image already exists in the database. Click submit ${3 - dupWarningCount} more time(s) to accept it.`
+                            : '3 warnings acknowledged! Click submit once more to accept this duplicate image.'}
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded text-[11px] whitespace-nowrap ml-2">
+                        {dupWarningCount}/3
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Image Title */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                    Image Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={imageTitle}
+                    onChange={(e) => setImageTitle(e.target.value)}
+                    placeholder="e.g. Sacred Manuscripts of Makalat-e-Hikmat"
+                    className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">
+                    Supports English or Urdu text in Jameel Noori Nastaleeq.
+                  </p>
+                </div>
+
+                {/* 3. Image Reference Number */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-neutral-700">
+                      Image Reference Number
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAutoGenerateRef}
+                      className="text-[11px] text-neutral-500 hover:text-black underline font-mono"
+                    >
+                      Generate Auto #
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={imageRefNumber}
+                    onChange={(e) => setImageRefNumber(e.target.value)}
+                    placeholder="e.g. DUE-REF-101"
+                    className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-mono text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">
+                    Public visitors can use this reference number to quickly search and find this image.
+                  </p>
+                </div>
+
+                {/* 4. Notes for Image (Admin Only) */}
+                <div className="md:col-span-2 bg-amber-50/50 border border-amber-200/70 rounded-2xl p-4">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Lock className="w-3.5 h-3.5 text-amber-700" />
+                    <label className="text-xs font-bold text-amber-900">
+                      Notes for the Image (Strictly for Admin Only)
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-amber-800/80 mb-2">
+                    Private confidential notes (e.g. physical archive vault location, donor name, negative roll number). Never displayed to public visitors!
+                  </p>
+                  <textarea
+                    rows={2}
+                    value={imageAdminNotes}
+                    onChange={(e) => setImageAdminNotes(e.target.value)}
+                    placeholder="e.g. Original print located in Cabinet #3, Drawer B. Negative archived by Trust."
+                    className="w-full px-3.5 py-2 bg-white border border-amber-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                {/* 5. Searchable Tags */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1">
+                    <Tag className="w-3.5 h-3.5 text-neutral-400" />
+                    <span>Searchable Tags (Comma-separated)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={imageTags}
+                    onChange={(e) => setImageTags(e.target.value)}
+                    placeholder="e.g. manuscript, hikmat, 1984, calligraphy, faisalabad"
+                    className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">
+                    Allows visitors to search and filter images by these keywords.
+                  </p>
+                </div>
+
+                {/* 6. Add Image to Folders / Streams */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1">
+                    <Layers className="w-3.5 h-3.5 text-neutral-400" />
+                    <span>Assign to Folders / Streams</span>
+                  </label>
+                  {streams.length === 0 ? (
+                    <p className="text-xs text-neutral-400 p-2 bg-white rounded-xl border border-neutral-200">
+                      No folders/streams created yet. Go to Streams tab to create one.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 p-3 bg-white border border-neutral-200 rounded-xl max-h-32 overflow-y-auto">
+                      {streams.map((stream) => {
+                        const isSelected = selectedStreams.includes(stream.id);
+                        return (
+                          <button
+                            type="button"
+                            key={stream.id}
+                            onClick={() => toggleStreamSelection(stream.id)}
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-neutral-900 text-white'
+                                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                            }`}
+                          >
+                            {isSelected ? '✓ ' : '+ '}
+                            {stream.title}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-neutral-400 mt-1">
+                    Click to select which folders/streams this image will appear in.
+                  </p>
+                </div>
+
+                {/* 7. Description about image */}
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                    Description about the Image
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={imageDescription}
+                    onChange={(e) => setImageDescription(e.target.value)}
+                    placeholder="Write detailed background, history, significance, or quote associated with this image. English and Urdu are both fully supported."
+                    className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isSubmittingImage}
+                  className={`w-full sm:w-auto px-6 py-3 sm:py-2.5 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center ${
+                    dupWarningCount > 0 && dupWarningUrl === imageUrl.trim()
+                      ? dupWarningCount >= 3
+                        ? 'bg-amber-600 hover:bg-amber-700 ring-2 ring-amber-400'
+                        : 'bg-amber-700 hover:bg-amber-800'
+                      : 'bg-neutral-900 hover:bg-neutral-800'
+                  }`}
+                >
+                  {isSubmittingImage 
+                    ? 'Staging Image...' 
+                    : dupWarningCount > 0 && dupWarningUrl === imageUrl.trim()
+                      ? dupWarningCount >= 3
+                        ? 'Accept Duplicate & Add to Pending List'
+                        : `Acknowledge Warning (${dupWarningCount}/3) & Proceed`
+                      : 'Add Image to Pending List'}
+                </button>
+              </div>
+            </form>
+            )}
+          </div>
+
+          {/* Existing Images Table / Registry with Multi-Select, 1-Click Folder & Delete, and Edit */}
+          <div>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-base font-bold text-neutral-900">
+                  Uploaded Images Registry ({filteredRegistryImages.length}{filteredRegistryImages.length !== images.length ? ` of ${images.length}` : ''})
+                </h2>
+                <p className="text-[11px] text-neutral-500">
+                  Select multiple images to delete or add to a folder in 1 click, or click Edit to modify any image link &amp; metadata.
+                </p>
+              </div>
+
+              {/* Search & Folder Filter Controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 sm:flex-none min-w-[180px]">
+                  <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={registrySearch}
+                    onChange={(e) => setRegistrySearch(e.target.value)}
+                    placeholder="Filter title, ref #, tag..."
+                    className="w-full sm:w-52 pl-8 pr-3 py-2 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+                <select
+                  value={registryFolderFilter}
+                  onChange={(e) => setRegistryFolderFilter(e.target.value)}
+                  className="px-3 py-2 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                >
+                  <option value="all">All Folders ({images.length})</option>
+                  <option value="__none__">
+                    No Folder ({images.filter((i) => !i.streamIds || i.streamIds.length === 0).length})
+                  </option>
+                  {streams.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.title} ({images.filter((i) => i.streamIds?.includes(s.id)).length})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={toggleSelectAllVisible}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-neutral-200 hover:bg-neutral-50 rounded-xl text-xs font-medium text-neutral-700 cursor-pointer"
+                >
+                  {allVisibleSelected ? (
+                    <CheckSquare className="w-3.5 h-3.5 text-neutral-900" />
+                  ) : (
+                    <Square className="w-3.5 h-3.5 text-neutral-400" />
+                  )}
+                  <span>{allVisibleSelected ? 'Deselect All' : 'Select All'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 1-CLICK BULK ACTION TOOLBAR (Shown when 1+ images selected) */}
+            {selectedImageIds.length > 0 && (
+              <div className="mb-4 p-3.5 sm:p-4 bg-neutral-900 text-white rounded-2xl shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-emerald-500 text-neutral-950 font-bold text-xs">
+                    {selectedImageIds.length} Selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedImageIds([])}
+                    className="text-xs text-neutral-400 hover:text-white underline cursor-pointer"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Folder selector + 1-click Add to Folder */}
+                  <div className="flex flex-wrap items-center gap-1.5 bg-neutral-800 p-1.5 rounded-xl border border-neutral-700">
+                    <select
+                      value={bulkTargetFolderId}
+                      onChange={(e) => setBulkTargetFolderId(e.target.value)}
+                      className="px-2.5 py-1.5 bg-neutral-900 border border-neutral-700 rounded-lg text-xs text-white focus:outline-none"
+                    >
+                      <option value="">-- Choose Folder --</option>
+                      {streams.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.title}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() => handleBulkAddToFolder()}
+                      disabled={!bulkTargetFolderId}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-neutral-950 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                    >
+                      <FolderInput className="w-3.5 h-3.5" />
+                      <span>Add to Folder</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleBulkRemoveFromFolder}
+                      disabled={!bulkTargetFolderId}
+                      className="px-2.5 py-1.5 bg-neutral-700 hover:bg-neutral-600 disabled:opacity-40 text-neutral-200 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                      title="Remove selected images from the chosen folder"
+                    >
+                      Remove from Folder
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickFolderInput((v) => !v)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white text-xs font-medium rounded-lg cursor-pointer"
+                      title="Create new folder"
+                    >
+                      <FolderPlus className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">New Folder</span>
+                    </button>
+                  </div>
+
+                  {/* 1-Click Delete Selected */}
+                  <button
+                    type="button"
+                    onClick={handleBulkDeleteSelected}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Selected ({selectedImageIds.length})</span>
+                  </button>
+                </div>
+
+                {/* Inline Quick New Folder Creator */}
+                {showQuickFolderInput && (
+                  <div className="w-full lg:w-auto flex items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-neutral-800">
+                    <input
+                      type="text"
+                      value={quickFolderName}
+                      onChange={(e) => setQuickFolderName(e.target.value)}
+                      placeholder="New folder name..."
+                      className="px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleQuickCreateAndAddFolder}
+                      className="px-3 py-1.5 bg-white text-neutral-950 text-xs font-bold rounded-lg cursor-pointer"
+                    >
+                      Create &amp; Add
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Desktop Table View (hidden on mobile) */}
+            <div className="hidden md:block bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-50 border-b border-neutral-200 text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+                      <th className="py-3 px-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={toggleSelectAllVisible}
+                          className="w-4 h-4 rounded border-neutral-300 accent-neutral-900 cursor-pointer"
+                          title="Select all visible images"
+                        />
+                      </th>
+                      <th className="py-3 px-3">Preview</th>
+                      <th className="py-3 px-3">Ref #</th>
+                      <th className="py-3 px-4">Title &amp; Link / Description</th>
+                      <th className="py-3 px-3 text-center">Views</th>
+                      <th className="py-3 px-3 text-center">Downloads</th>
+                      <th className="py-3 px-4">Admin Notes</th>
+                      <th className="py-3 px-4">Folders &amp; Tags</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 text-xs">
+                    {filteredRegistryImages.map((image) => {
+                      const isSelected = selectedImageIds.includes(image.id);
+                      const isNew = pendingChanges.addedImageIds.has(image.id);
+                      const isEdited = pendingChanges.editedImageIds.has(image.id);
+                      const previewSrc =
+                        image.url.startsWith('/uploads/') && localPreviewMap[image.id]
+                          ? localPreviewMap[image.id]
+                          : image.url;
+
+                      return (
+                      <tr
+                        key={image.id}
+                        className={`transition-colors ${
+                          isSelected ? 'bg-emerald-50/60' : 'hover:bg-neutral-50/50'
+                        }`}
+                      >
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleImageSelected(image.id)}
+                            className="w-4 h-4 rounded border-neutral-300 accent-neutral-900 cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-3 px-3 w-16">
+                          <img
+                            src={previewSrc}
+                            alt={image.title}
+                            className="w-12 h-12 rounded-lg object-cover bg-neutral-100 border border-neutral-200"
+                          />
+                        </td>
+                        <td className="py-3 px-3 font-mono font-medium text-neutral-700 whitespace-nowrap">
+                          <div>{image.referenceNumber}</div>
+                          {isNew && (
+                            <span className="inline-block mt-1 text-[9px] font-sans font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                              NEW (Unsaved)
+                            </span>
+                          )}
+                          {isEdited && (
+                            <span className="inline-block mt-1 text-[9px] font-sans font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                              EDITED
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 max-w-xs">
+                          <Link
+                            href={`/image/${image.id}`}
+                            target="_blank"
+                            prefetch={false}
+                            className="font-medium text-neutral-900 hover:underline flex items-center gap-1"
+                          >
+                            <span className="truncate">{image.title}</span>
+                            <ExternalLink className="w-3 h-3 text-neutral-400 shrink-0" />
+                          </Link>
+                          <p className="text-[10px] text-neutral-400 font-mono truncate max-w-[220px] mt-0.5">
+                            {image.url.startsWith('data:') ? '[Staged Local Upload]' : image.url}
+                          </p>
+                          {image.description && (
+                            <p className="text-[11px] text-neutral-500 line-clamp-1 mt-0.5">
+                              {image.description}
+                            </p>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-neutral-700 bg-neutral-100 px-2.5 py-0.5 rounded-full">
+                            <Eye className="w-3 h-3 text-neutral-400" />
+                            {image.views || 0}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-neutral-700 bg-neutral-100 px-2.5 py-0.5 rounded-full">
+                            <Download className="w-3 h-3 text-neutral-400" />
+                            {image.downloads || 0}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 max-w-xs">
+                          {image.adminNotes ? (
+                            <div className="p-1.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-md text-[11px]">
+                              <span className="font-semibold block text-[10px]">🔒 Admin Note:</span>
+                              {image.adminNotes}
+                            </div>
+                          ) : (
+                            <span className="text-neutral-400 italic text-[11px]">None</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-wrap gap-1 max-w-[220px]">
+                            {image.streamIds?.map((sid) => {
+                              const folder = streams.find((s) => s.id === sid);
+                              return (
+                                <span
+                                  key={sid}
+                                  className="text-[10px] bg-neutral-900 text-white px-2 py-0.5 rounded-full font-medium"
+                                >
+                                  📁 {folder?.title || sid}
+                                </span>
+                              );
+                            })}
+                            {image.tags?.map((t, i) => (
+                              <span key={i} className="text-[10px] bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-600">
+                                #{t}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingImage(image)}
+                              title="Edit image link & metadata"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-neutral-700 hover:text-neutral-950 bg-neutral-100 hover:bg-neutral-200 rounded-lg text-[11px] font-medium transition-colors cursor-pointer"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteImage(image.id)}
+                              title="Delete image"
+                              className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile Card-Based Registry View (optimized for phones) */}
+            <div className="md:hidden space-y-3">
+              {filteredRegistryImages.map((image) => {
+                const isSelected = selectedImageIds.includes(image.id);
+                const isNew = pendingChanges.addedImageIds.has(image.id);
+                const isEdited = pendingChanges.editedImageIds.has(image.id);
+                const previewSrc =
+                  image.url.startsWith('/uploads/') && localPreviewMap[image.id]
+                    ? localPreviewMap[image.id]
+                    : image.url;
+
+                return (
+                <div
+                  key={image.id}
+                  className={`border rounded-2xl p-3.5 shadow-2xs space-y-3 transition-colors ${
+                    isSelected
+                      ? 'bg-emerald-50/50 border-emerald-400 ring-1 ring-emerald-300'
+                      : 'bg-white border-neutral-200'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleImageSelected(image.id)}
+                      className="w-4 h-4 mt-1 rounded border-neutral-300 accent-neutral-900 shrink-0 cursor-pointer"
+                    />
+                    <img
+                      src={previewSrc}
+                      alt={image.title}
+                      className="w-16 h-16 rounded-xl object-cover bg-neutral-100 border border-neutral-200 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1 mb-1 flex-wrap">
+                        <div className="flex items-center gap-1">
+                          <span className="font-mono text-[11px] font-bold text-neutral-800 bg-neutral-100 px-2 py-0.5 rounded-md">
+                            {image.referenceNumber || 'No Ref'}
+                          </span>
+                          {isNew && (
+                            <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                              NEW
+                            </span>
+                          )}
+                          {isEdited && (
+                            <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                              EDITED
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                          <span className="inline-flex items-center gap-1 text-neutral-700 bg-neutral-100 px-1.5 py-0.5 rounded-md">
+                            <Eye className="w-3 h-3 text-neutral-400" />
+                            {image.views || 0}
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-neutral-700 bg-neutral-100 px-1.5 py-0.5 rounded-md">
+                            <Download className="w-3 h-3 text-neutral-400" />
+                            {image.downloads || 0}
+                          </span>
+                        </div>
+                      </div>
+
+                      <h3 className="font-semibold text-xs text-neutral-900 truncate">
+                        {image.title}
+                      </h3>
+                      <p className="text-[10px] text-neutral-400 font-mono truncate">
+                        {image.url.startsWith('data:') ? '[Staged Local Upload]' : image.url}
+                      </p>
+
+                      {image.description && (
+                        <p className="text-[11px] text-neutral-500 line-clamp-1 mt-0.5">
+                          {image.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Confidential Admin Note */}
+                  {image.adminNotes && (
+                    <div className="p-2 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-[11px]">
+                      <span className="font-semibold block text-[10px] text-amber-800">🔒 Confidential Admin Note:</span>
+                      {image.adminNotes}
+                    </div>
+                  )}
+
+                  {/* Folders, Tags & Action Bar */}
+                  <div className="flex items-center justify-between pt-2 border-t border-neutral-100 gap-2">
+                    <div className="flex flex-wrap gap-1 max-w-[55%]">
+                      {image.streamIds?.map((sid) => {
+                        const folder = streams.find((s) => s.id === sid);
+                        return (
+                          <span
+                            key={sid}
+                            className="text-[10px] bg-neutral-900 text-white px-2 py-0.5 rounded-full"
+                          >
+                            📁 {folder?.title || sid}
+                          </span>
+                        );
+                      })}
+                      {image.tags?.slice(0, 3).map((t, i) => (
+                        <span key={i} className="text-[10px] bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-600">
+                          #{t}
+                        </span>
+                      ))}
+                      {(image.tags?.length || 0) > 3 && (
+                        <span className="text-[10px] text-neutral-400">+{image.tags.length - 3}</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setEditingImage(image)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-neutral-900 text-white text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        <span>Edit</span>
+                      </button>
+                      <Link
+                        href={`/image/${image.id}`}
+                        target="_blank"
+                        prefetch={false}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-[11px] font-medium rounded-lg transition-colors"
+                      >
+                        <span>View</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteImage(image.id)}
+                        className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        title="Delete image"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: DAILY WEBSITE VISITORS & TRAFFIC BREAKDOWN */}
+      {activeTab === 'analytics' && (
+        <div className="space-y-6 sm:space-y-8">
+          <div className="bg-white border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-neutral-200">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Live Visitor Logs
+                  </span>
+                </div>
+                <h2 className="text-lg sm:text-xl font-bold text-neutral-900 tracking-tight">
+                  Daily Website Visitors Quantity & Breakdown
+                </h2>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Detailed day-by-day records of unique visitors and total page impressions across the site.
+                </p>
+              </div>
+
+              <button
+                onClick={handleRefreshAnalytics}
+                disabled={isRefreshingAnalytics}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingAnalytics ? 'animate-spin' : ''}`} />
+                <span>Refresh Logs</span>
+              </button>
+            </div>
+
+            {/* Comparative Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-8">
+              <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80">
+                <div className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider mb-1">
+                  Today ({analytics?.today || 'Current Day'})
+                </div>
+                <div className="text-2xl sm:text-3xl font-extrabold text-emerald-950 font-mono">
+                  {analytics?.todayVisitors ?? 0}
+                </div>
+                <div className="text-xs text-emerald-700 mt-1">
+                  Unique visitors ({analytics?.todayPageViews ?? 0} page hits)
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200">
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider mb-1">
+                  Yesterday ({analytics?.yesterday || 'Previous Day'})
+                </div>
+                <div className="text-2xl sm:text-3xl font-extrabold text-neutral-900 font-mono">
+                  {analytics?.yesterdayVisitors ?? 0}
+                </div>
+                <div className="text-xs text-neutral-500 mt-1">
+                  Unique visitors ({analytics?.yesterdayPageViews ?? 0} page hits)
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200/80">
+                <div className="text-[11px] font-semibold text-indigo-800 uppercase tracking-wider mb-1">
+                  All-Time Total
+                </div>
+                <div className="text-2xl sm:text-3xl font-extrabold text-indigo-950 font-mono">
+                  {analytics?.totalVisitors ?? 0}
+                </div>
+                <div className="text-xs text-indigo-700 mt-1">
+                  Total unique visitors ({analytics?.totalPageViews ?? 0} total hits)
+                </div>
+              </div>
+            </div>
+
+            {/* Daily History Table */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold text-neutral-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-neutral-500" />
+                  <span>Day-by-Day Visitor History</span>
+                </h3>
+                <span className="text-[11px] text-neutral-400 font-mono">
+                  Showing last {analytics?.history?.length || 0} recorded days
+                </span>
+              </div>
+
+              {(!analytics?.history || analytics.history.length === 0) ? (
+                <div className="text-center py-10 bg-neutral-50 rounded-2xl border border-neutral-200">
+                  <Users className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+                  <p className="text-xs font-medium text-neutral-600">No daily records logged yet.</p>
+                  <p className="text-[11px] text-neutral-400 mt-0.5">Visits to the public website feed will automatically record here.</p>
+                </div>
+              ) : (
+                <div className="border border-neutral-200 rounded-2xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-neutral-50 border-b border-neutral-200 text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+                          <th className="py-3 px-4">Date</th>
+                          <th className="py-3 px-4">Unique Visitors</th>
+                          <th className="py-3 px-4">Page Hits / Views</th>
+                          <th className="py-3 px-4 text-right">Traffic Volume</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 text-xs">
+                        {analytics.history.map((record) => {
+                          const isToday = record.date === analytics.today;
+                          const isYesterday = record.date === analytics.yesterday;
+                          const maxUnique = Math.max(...analytics.history.map(h => h.unique), 1);
+                          const pct = Math.min(100, Math.max(8, Math.round((record.unique / maxUnique) * 100)));
+
+                          return (
+                            <tr key={record.date} className={`hover:bg-neutral-50/60 transition-colors ${isToday ? 'bg-emerald-50/30' : ''}`}>
+                              <td className="py-3 px-4 font-mono font-medium text-neutral-800">
+                                <div className="flex items-center gap-2">
+                                  <span>{record.date}</span>
+                                  {isToday && (
+                                    <span className="text-[10px] font-sans font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded-md">
+                                      Today
+                                    </span>
+                                  )}
+                                  {isYesterday && (
+                                    <span className="text-[10px] font-sans font-medium bg-neutral-100 text-neutral-600 px-1.5 py-0.2 rounded-md">
+                                      Yesterday
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 font-mono font-bold text-neutral-900">
+                                <span className="inline-flex items-center gap-1.5 bg-neutral-100 px-2 py-0.5 rounded-md text-xs">
+                                  <Users className="w-3 h-3 text-neutral-500" />
+                                  {record.unique.toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-mono text-neutral-600">
+                                <span className="inline-flex items-center gap-1.5 bg-neutral-50 px-2 py-0.5 rounded-md text-xs">
+                                  <Activity className="w-3 h-3 text-cyan-600" />
+                                  {record.total.toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="inline-flex items-center gap-2 w-28 sm:w-36 justify-end">
+                                  <div className="w-full bg-neutral-100 h-2 rounded-full overflow-hidden">
+                                    <div
+                                      className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[11px] font-mono text-neutral-400 w-8 text-right shrink-0">
+                                    {pct}%
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: HERO MEDIA MANAGEMENT (IMAGE & VIDEO + SEPARATE AUDIO) */}
+      {activeTab === 'hero' && (
+        <div className="space-y-10">
+          <div className="bg-neutral-50/60 border border-neutral-200 rounded-3xl p-6 sm:p-8 max-w-2xl">
+            <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
+              <LayoutTemplate className="w-4 h-4" />
+              <span>Add Homepage Hero Media (Image or Video)</span>
+            </h2>
+            <p className="text-xs text-neutral-500 mb-6">
+              Hero media is displayed edge-to-edge under the navbar on the homepage. You can choose a static image or a looping video, and optionally attach a separate audio track that plays exclusively while visitors view this hero section.
+            </p>
+
+            <form onSubmit={handleAddHero} className="space-y-5">
+              {/* Media Type Toggle: Image vs Video */}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-2">
+                  Hero Media Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeroMediaType('image');
+                      setHeroUrl('');
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                      heroMediaType === 'image'
+                        ? 'bg-neutral-900 text-white border-neutral-900 shadow-sm'
+                        : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    <span>Static Image</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeroMediaType('video');
+                      setHeroUrl('');
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                      heroMediaType === 'video'
+                        ? 'bg-neutral-900 text-white border-neutral-900 shadow-sm'
+                        : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <Film className="w-4 h-4" />
+                    <span>Hero Video (MP4 / WebM)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Media Input: Image File/URL vs Video File/URL */}
+              {heroMediaType === 'image' ? (
+                <div>
+                  <ImageFileInput
+                    value={heroUrl}
+                    onChange={(url, filename) => {
+                      setHeroUrl(url);
+                      if (filename && !heroTitle.trim()) {
+                        const cleanTitle = filename
+                          .replace(/\.[^/.]+$/, '')
+                          .replace(/[-_]+/g, ' ')
+                          .replace(/\b\w/g, (c) => c.toUpperCase())
+                          .trim();
+                        if (cleanTitle) setHeroTitle(cleanTitle);
+                      }
+                    }}
+                    label="Hero Image File or Direct Link"
+                    required
+                    helperText="Upload a high-resolution hero photo from your computer or provide a direct web image link."
+                  />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <label className="block text-xs font-semibold text-neutral-700">
+                    Hero Video File or Direct Link <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={heroUrl}
+                      onChange={(e) => setHeroUrl(e.target.value)}
+                      placeholder="https://... direct .mp4 or .webm link or choose a video file"
+                      className="flex-1 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    />
+                    <label className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-800 cursor-pointer transition-colors whitespace-nowrap">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Video File</span>
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 60 * 1024 * 1024) {
+                              showNotify('error', 'Video is larger than 60MB. Please use a smaller clip or direct URL.');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setHeroUrl(reader.result as string);
+                              if (!heroTitle.trim()) {
+                                const cleanTitle = file.name
+                                  .replace(/\.[^/.]+$/, '')
+                                  .replace(/[-_]+/g, ' ')
+                                  .replace(/\b\w/g, (c) => c.toUpperCase())
+                                  .trim();
+                                if (cleanTitle) setHeroTitle(cleanTitle);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">
+                    Supports MP4, WebM, and MOV formats. Videos loop automatically as the hero background.
+                  </p>
+                  {heroUrl && (
+                    <div className="mt-2 rounded-2xl overflow-hidden border border-neutral-200 bg-black max-h-56 flex items-center justify-center relative">
+                      <video
+                        src={heroUrl}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-44 object-cover"
+                      />
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-mono">
+                        Video Preview
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Hero Title */}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Hero Title / Identifier (Optional admin note)
+                </label>
+                <input
+                  type="text"
+                  value={heroTitle}
+                  onChange={(e) => setHeroTitle(e.target.value)}
+                  placeholder="e.g. Panoramic Dar-ul-Ehsan Courtyard"
+                  className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                />
+              </div>
+
+              {/* SEPARATE AUDIO OPTION FOR HERO */}
+              <div className="p-4 bg-white border border-neutral-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 text-neutral-900" />
+                    <label className="text-xs font-bold text-neutral-900">
+                      Separate Hero Audio Track (Optional)
+                    </label>
+                  </div>
+                  {heroAudioUrl && (
+                    <button
+                      type="button"
+                      onClick={() => toggleAudioPreview(heroAudioUrl)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                    >
+                      {activePreviewAudio === heroAudioUrl ? (
+                        <>
+                          <Pause className="w-3 h-3 text-red-600" />
+                          <span>Stop Preview</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3 h-3 text-emerald-600" />
+                          <span>Test Audio</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-neutral-500 leading-relaxed">
+                  When set, this audio plays exclusively while the visitor is viewing the hero section. When they scroll down into the images, this audio pauses and the platform&apos;s main playlist resumes.
+                </p>
+
+                {/* Quick Selection from existing playlist tracks */}
+                {audioTracks.length > 0 && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
+                      Choose from Uploaded Playlist Tracks:
+                    </label>
+                    <select
+                      value={audioTracks.some((t) => t.url === heroAudioUrl) ? heroAudioUrl : ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setHeroAudioUrl(e.target.value);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    >
+                      <option value="">-- Choose from existing audio library --</option>
+                      {audioTracks.map((track) => (
+                        <option key={track.id} value={track.url}>
+                          {track.title} {track.artist ? `(${track.artist})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Custom Audio URL or Upload */}
+                <div className="pt-2 border-t border-neutral-100">
+                  <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
+                    Or Enter Custom Audio URL / Upload Audio File:
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={heroAudioUrl}
+                      onChange={(e) => setHeroAudioUrl(e.target.value)}
+                      placeholder="e.g. /api/audio-stream?id=... or https://... audio link"
+                      className="flex-1 px-3 py-2 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 font-mono focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    />
+                    <label className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-700 cursor-pointer transition-colors whitespace-nowrap">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Audio File</span>
+                      <input
+                        type="file"
+                        accept="audio/mp3,audio/wav,audio/ogg,audio/mpeg,audio/aac,audio/m4a"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 30 * 1024 * 1024) {
+                              showNotify('error', 'Audio file is too large (max 30MB).');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setHeroAudioUrl(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                    {heroAudioUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activePreviewAudio === heroAudioUrl && adminAudioPreviewRef.current) {
+                            adminAudioPreviewRef.current.pause();
+                            setActivePreviewAudio(null);
+                          }
+                          setHeroAudioUrl('');
+                        }}
+                        className="px-2.5 py-2 text-xs text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                        title="Clear Audio"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmittingHero}
+                className="px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer"
+              >
+                {isSubmittingHero ? 'Adding Hero Media...' : 'Add Hero Media'}
+              </button>
+            </form>
+          </div>
+
+          <div>
+            <h2 className="text-base font-bold text-neutral-900 mb-4">
+              Active Hero Media Pool ({heroImages.length})
+            </h2>
+
+            {heroImages.length === 0 ? (
+              <p className="text-xs text-neutral-400 italic p-6 bg-neutral-50 rounded-2xl border border-neutral-200">
+                No hero media added yet. Add one above to display under the navbar.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {heroImages.map((hero) => {
+                  const isVid =
+                    hero.mediaType === 'video' ||
+                    Boolean(hero.url.match(/\.(mp4|webm|mov|ogg)(\?.*)?$/i)) ||
+                    hero.url.startsWith('data:video/');
+
+                  return (
+                    <div
+                      key={hero.id}
+                      className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between"
+                    >
+                      <div className="relative h-44 bg-neutral-900 overflow-hidden">
+                        {isVid ? (
+                          <video
+                            src={hero.url}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <img
+                            src={hero.url}
+                            alt={hero.title || 'Hero'}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-semibold backdrop-blur-xs flex items-center gap-1">
+                            {isVid ? (
+                              <>
+                                <Film className="w-3 h-3 text-[#c6ff33]" />
+                                <span>Video</span>
+                              </>
+                            ) : (
+                              <>
+                                <ImageIcon className="w-3 h-3 text-white" />
+                                <span>Image</span>
+                              </>
+                            )}
+                          </span>
+                          {hero.audioUrl && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-600/90 text-white text-[10px] font-semibold backdrop-blur-xs flex items-center gap-1">
+                              <Volume2 className="w-3 h-3" />
+                              <span>Audio</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-4 flex flex-col justify-between gap-3 flex-1">
+                        <div>
+                          <h4 className="text-xs font-semibold text-neutral-900 truncate">
+                            {hero.title || 'Untitled Hero'}
+                          </h4>
+                          <span className="text-[10px] text-neutral-400 block mt-0.5">
+                            Added {hero.dateAdded}
+                          </span>
+
+                          {hero.audioUrl ? (
+                            <div className="mt-2.5 pt-2 border-t border-neutral-100 flex items-center justify-between">
+                              <span className="text-[10px] text-emerald-700 font-medium truncate max-w-[140px]">
+                                🎵 Dedicated Hero Audio
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleAudioPreview(hero.audioUrl!)}
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition-colors cursor-pointer"
+                              >
+                                {activePreviewAudio === hero.audioUrl ? (
+                                  <>
+                                    <Pause className="w-2.5 h-2.5 text-red-600" />
+                                    <span>Stop</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play className="w-2.5 h-2.5 text-emerald-600" />
+                                    <span>Listen</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="mt-2.5 pt-2 border-t border-neutral-100">
+                              <span className="text-[10px] text-neutral-400 italic">
+                                Plays platform playlist
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-end pt-1">
+                          <button
+                            onClick={() => handleDeleteHero(hero.id)}
+                            className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            title="Delete hero media"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: BRAND LOGO & APPEARANCE MANAGEMENT */}
+      {activeTab === 'logo' && (
+        <div className="space-y-8 sm:space-y-10 max-w-3xl">
+          <div className="bg-neutral-50/60 border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8">
+            <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
+              <Palette className="w-4 h-4 text-neutral-900" />
+              <span>Website Appearance, Theme & Branding</span>
+            </h2>
+            <p className="text-xs text-neutral-500 mb-6">
+              Customize the brand logo, website name visibility, home page fixed background, sticky navbar styling (blur, color, transparency), and audio wave colors.
+            </p>
+
+            <form onSubmit={handleSaveLogo} className="space-y-8">
+              {/* SECTION 1: BRAND LOGO & SITE NAME */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider text-neutral-500">
+                  1. Brand Logo & Site Title
+                </h3>
+
+                {/* Platform / Website Name Input */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                    Platform / Website Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={platformNameInput}
+                    onChange={(e) => setPlatformNameInput(e.target.value)}
+                    placeholder="e.g. Rahy Ishq"
+                    className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 font-medium"
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">
+                    Changing this updates the website header, footer, page titles, and social media share previews across the entire platform in one place.
+                  </p>
+                </div>
+
+                <div>
+                  <ImageFileInput
+                    value={logoInputUrl}
+                    onChange={(url) => setLogoInputUrl(url)}
+                    label="Brand Logo File or Link"
+                    helperText="Upload a logo (transparent PNG/SVG recommended) from your computer or enter a direct image link."
+                  />
+                </div>
+
+                <div className="bg-white border border-neutral-200 rounded-2xl p-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hideSiteNameInput}
+                      onChange={(e) => setHideSiteNameInput(e.target.checked)}
+                      className="w-4 h-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-neutral-900 block">
+                        Hide Website Name &amp; Use Logo Image Only
+                      </span>
+                      <span className="text-[11px] text-neutral-500 block mt-0.5">
+                        When enabled, &quot;Makalat-E-Hikmat&quot; text will be removed and ONLY the logo image will be displayed in the header.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Live Navbar Logo Preview */}
+                <div>
+                  <span className="block text-xs font-semibold text-neutral-700 mb-2">
+                    Header Brand Preview
+                  </span>
+                  <div className="p-4 bg-white border border-neutral-200 rounded-2xl flex items-center gap-3">
+                    {logoInputUrl ? (
+                      <img
+                        src={logoInputUrl}
+                        alt="Logo Preview"
+                        onError={() => showNotify('error', 'Logo image link failed to load')}
+                        className="h-9 w-auto max-w-[140px] object-contain"
+                      />
+                    ) : (
+                      <div className="h-9 px-3 border border-dashed border-neutral-300 rounded-lg flex items-center justify-center text-[11px] text-neutral-400">
+                        No Logo Uploaded
+                      </div>
+                    )}
+                    {!hideSiteNameInput && (
+                      <span className="font-semibold text-neutral-900 text-lg tracking-tight">
+                        {platformNameInput || 'Rahy Ishq'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: HOME PAGE FIXED BACKGROUND */}
+              <div className="pt-6 border-t border-neutral-200 space-y-4">
+                <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider text-neutral-500">
+                  2. Home Page Fixed Background Image
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  Set a fixed background photo behind the homepage. The background will remain completely fixed in place while feed images scroll smoothly through it.
+                </p>
+
+                <div>
+                  <ImageFileInput
+                    value={homeBgInputUrl}
+                    onChange={(url) => setHomeBgInputUrl(url)}
+                    label="Fixed Background Image File or Link"
+                    helperText="Upload a high-res wallpaper photo from your computer or paste a direct image URL."
+                  />
+                </div>
+
+                {homeBgInputUrl && (
+                  <div className="p-4 bg-white border border-neutral-200 rounded-2xl flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-12 rounded-lg overflow-hidden border border-neutral-200 bg-neutral-100 flex-shrink-0">
+                        <img
+                          src={homeBgInputUrl}
+                          alt="Background preview"
+                          className="w-full h-full object-cover"
+                          onError={() => showNotify('error', 'Background picture failed to load')}
+                        />
+                      </div>
+                      <div className="text-xs">
+                        <span className="font-semibold text-neutral-900 block">Fixed Background Active</span>
+                        <span className="text-neutral-500 text-[11px]">Pictures will scroll over this static background.</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setHomeBgInputUrl('')}
+                      className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      Remove Background
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 3: STICKY NAVBAR STYLING (BLUR, COLOR, TRANSPARENCY) */}
+              <div className="pt-6 border-t border-neutral-200 space-y-5">
+                <div className="flex items-center gap-2">
+                  <Sliders className="w-4 h-4 text-neutral-900" />
+                  <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider text-neutral-500">
+                    3. Sticky Navbar Styling (Color, Transparency &amp; Blur)
+                  </h3>
+                </div>
+                <p className="text-xs text-neutral-500">
+                  Control the appearance of the sticky navigation bar when visitors scroll down the page.
+                </p>
+
+                {/* Navbar Color */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                    Sticky Navbar Background Color
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={navbarColorInput}
+                      onChange={(e) => setNavbarColorInput(e.target.value)}
+                      className="w-10 h-10 p-1 rounded-xl border border-neutral-200 cursor-pointer bg-white"
+                    />
+                    <input
+                      type="text"
+                      value={navbarColorInput}
+                      onChange={(e) => setNavbarColorInput(e.target.value)}
+                      placeholder="#ffffff"
+                      className="w-32 px-3 py-2 bg-white border border-neutral-200 rounded-xl text-xs font-mono text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    />
+                    {/* Quick Color Swatches */}
+                    <div className="flex items-center gap-1.5 ml-2">
+                      {[
+                        { label: 'White', color: '#ffffff' },
+                        { label: 'Charcoal', color: '#18181b' },
+                        { label: 'Cream', color: '#faf8f5' },
+                        { label: 'Slate', color: '#0f172a' },
+                      ].map((preset) => (
+                        <button
+                          key={preset.color}
+                          type="button"
+                          onClick={() => setNavbarColorInput(preset.color)}
+                          className="px-2.5 py-1 text-[11px] rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 transition-colors"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Navbar Transparency (Opacity) Slider */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-neutral-700">
+                      Navbar Opacity / Transparency
+                    </label>
+                    <span className="text-xs font-mono font-bold text-neutral-900 bg-neutral-100 px-2 py-0.5 rounded-md">
+                      {navbarOpacityInput}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={navbarOpacityInput}
+                    onChange={(e) => setNavbarOpacityInput(Number(e.target.value))}
+                    className="w-full accent-neutral-900 h-2 bg-neutral-200 rounded-lg cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-neutral-400 mt-1 font-mono">
+                    <span>0% (Fully Transparent)</span>
+                    <span>50%</span>
+                    <span>75% (Recommended)</span>
+                    <span>100% (Solid)</span>
+                  </div>
+                </div>
+
+                {/* Navbar Blur Slider */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-neutral-700">
+                      Navbar Frosted Blur
+                    </label>
+                    <span className="text-xs font-mono font-bold text-neutral-900 bg-neutral-100 px-2 py-0.5 rounded-md">
+                      {navbarBlurInput}px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="30"
+                    step="1"
+                    value={navbarBlurInput}
+                    onChange={(e) => setNavbarBlurInput(Number(e.target.value))}
+                    className="w-full accent-neutral-900 h-2 bg-neutral-200 rounded-lg cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-neutral-400 mt-1 font-mono">
+                    <span>0px (No Blur)</span>
+                    <span>12px (Smooth Glass)</span>
+                    <span>20px (Deep Frost)</span>
+                    <span>30px (Max Blur)</span>
+                  </div>
+                </div>
+
+                {/* Sticky Navbar Live Interactive Preview */}
+                <div>
+                  <span className="block text-xs font-semibold text-neutral-700 mb-2">
+                    Live Sticky Navbar Preview (Simulated over Scrolling Content)
+                  </span>
+                  <div className="relative rounded-2xl overflow-hidden border border-neutral-200 h-28 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-200 via-rose-300 to-indigo-400 p-3 flex flex-col justify-between">
+                    {/* Simulated Sticky Bar */}
+                    <div
+                      className="w-full rounded-xl px-4 py-2.5 flex items-center justify-between shadow-xs border border-white/20 transition-all duration-200"
+                      style={{
+                        backgroundColor: (() => {
+                          const hex = navbarColorInput.replace('#', '');
+                          const r = parseInt(hex.substring(0, 2) || 'ff', 16);
+                          const g = parseInt(hex.substring(2, 4) || 'ff', 16);
+                          const b = parseInt(hex.substring(4, 6) || 'ff', 16);
+                          return `rgba(${r}, ${g}, ${b}, ${navbarOpacityInput / 100})`;
+                        })(),
+                        backdropFilter: `blur(${navbarBlurInput}px)`,
+                        WebkitBackdropFilter: `blur(${navbarBlurInput}px)`,
+                      }}
+                    >
+                      <span className="text-xs font-bold text-neutral-900">
+                        {hideSiteNameInput && logoInputUrl ? 'Logo Only' : 'Makalat-E-Hikmat'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px]">🔍</span>
+                        <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px]">≡</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-neutral-800/80 font-medium bg-white/40 backdrop-blur-xs px-2 py-0.5 rounded-full self-start">
+                      Simulated content showing through frosted navbar
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 4: FLOATING MUSIC BUTTON & SOUND WAVES */}
+              <div className="pt-6 border-t border-neutral-200 space-y-5">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="w-4 h-4 text-neutral-900" />
+                  <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider text-neutral-500">
+                    4. Floating Music Button &amp; Audio Wave Color
+                  </h3>
+                </div>
+
+                {/* Music Button Image Link */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                    Music Button Mini Image (URL)
+                  </label>
+                  <input
+                    type="url"
+                    value={musicIconInputUrl}
+                    onChange={(e) => setMusicIconInputUrl(e.target.value)}
+                    placeholder="https://... image link for circular music floating button"
+                    className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">
+                    Replaces the default icon with your mini image inside the circular button.
+                  </p>
+                </div>
+
+                {/* Wave Color Selector */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                    Wave Equalizer Color
+                  </label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <input
+                      type="color"
+                      value={waveColorInput}
+                      onChange={(e) => setWaveColorInput(e.target.value)}
+                      className="w-10 h-10 p-1 rounded-xl border border-neutral-200 cursor-pointer bg-white"
+                    />
+                    <input
+                      type="text"
+                      value={waveColorInput}
+                      onChange={(e) => setWaveColorInput(e.target.value)}
+                      placeholder="#84cc16"
+                      className="w-32 px-3 py-2 bg-white border border-neutral-200 rounded-xl text-xs font-mono text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    />
+
+                    {/* Quick Color Swatches */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[
+                        { label: 'Lime Green', color: '#84cc16' },
+                        { label: 'Emerald', color: '#10b981' },
+                        { label: 'Golden Amber', color: '#f59e0b' },
+                        { label: 'Sky Blue', color: '#0ea5e9' },
+                        { label: 'Violet', color: '#8b5cf6' },
+                        { label: 'Rose Red', color: '#f43f5e' },
+                        { label: 'White', color: '#ffffff' },
+                      ].map((preset) => (
+                        <button
+                          key={preset.color}
+                          type="button"
+                          onClick={() => setWaveColorInput(preset.color)}
+                          className="flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 transition-colors"
+                        >
+                          <span
+                            className="w-2.5 h-2.5 rounded-full border border-black/10"
+                            style={{ backgroundColor: preset.color }}
+                          />
+                          <span>{preset.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Preview of Playing vs Muted Waves */}
+                <div>
+                  <span className="block text-xs font-semibold text-neutral-700 mb-2">
+                    Live Sound Waves Preview (Playing vs Muted State)
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* State 1: Active / Playing Waves */}
+                    <div className="p-5 bg-neutral-900 text-white rounded-2xl flex items-center gap-5">
+                      <div className="relative flex items-center justify-center w-16 h-16 flex-shrink-0">
+                        {/* Dynamic Radial Equalizer Waves */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <svg viewBox="0 0 100 100" className="w-16 h-16 overflow-visible">
+                            {Array.from({ length: 24 }).map((_, i) => {
+                              const rad = (i * 360 * Math.PI) / (24 * 180);
+                              const innerR = 29;
+                              const outerR = innerR + [6, 12, 8, 14, 7, 11, 15, 9, 13, 10][i % 10];
+                              return (
+                                <line
+                                  key={i}
+                                  x1={50 + innerR * Math.cos(rad)}
+                                  y1={50 + innerR * Math.sin(rad)}
+                                  x2={50 + outerR * Math.cos(rad)}
+                                  y2={50 + outerR * Math.sin(rad)}
+                                  stroke={waveColorInput}
+                                  strokeWidth="2.75"
+                                  strokeLinecap="round"
+                                  className="animate-pulse"
+                                  style={{
+                                    animationDuration: `${0.8 + (i % 4) * 0.25}s`,
+                                  }}
+                                />
+                              );
+                            })}
+                          </svg>
+                        </div>
+                        <div className="relative z-10 w-10 h-10 rounded-full overflow-hidden border-2 border-white bg-indigo-600 flex items-center justify-center">
+                          {musicIconInputUrl ? (
+                            <img
+                              src={musicIconInputUrl}
+                              alt="Music preview"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-[#4c449d] flex items-center justify-center text-white text-xs font-bold">
+                              M
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-xs">
+                        <span className="font-semibold text-emerald-400 block mb-0.5">
+                          Sound ON (Playing)
+                        </span>
+                        <span className="text-neutral-400 text-[11px] leading-relaxed">
+                          Dynamic animated waves in selected color pulse around the circle button.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* State 2: Muted State (No Waves Shown) */}
+                    <div className="p-5 bg-neutral-900 text-white rounded-2xl flex items-center gap-5">
+                      <div className="relative flex items-center justify-center w-16 h-16 flex-shrink-0">
+                        {/* No waves when muted */}
+                        <div className="relative z-10 w-11 h-11 rounded-full overflow-hidden border-2 border-white bg-indigo-600 flex items-center justify-center shadow-md">
+                          {musicIconInputUrl ? (
+                            <img
+                              src={musicIconInputUrl}
+                              alt="Music preview"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-[#4c449d] flex items-center justify-center text-white text-xs font-bold">
+                              M
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-xs">
+                        <span className="font-semibold text-neutral-300 block mb-0.5">
+                          Sound Muted (No Waves)
+                        </span>
+                        <span className="text-neutral-400 text-[11px] leading-relaxed">
+                          When sound is muted or paused, no waves are rendered around the button. Unmuting resumes playback right from where it left off.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 5: FOOTER CONTENT & FULL-SIZE SOCIAL MEDIA LINKS */}
+              <div className="pt-6 border-t border-neutral-200 space-y-5">
+                <div className="flex items-center gap-2">
+                  <Share2 className="w-4 h-4 text-neutral-900" />
+                  <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider text-neutral-500">
+                    5. Footer Content &amp; Full-Size Social Links
+                  </h3>
+                </div>
+                <p className="text-xs text-neutral-500">
+                  Customize the English details line, Arabic/Urdu typography, and social media URLs displayed in the website footer card.
+                </p>
+
+                {/* Footer English Details Text */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                    Footer English Details Text
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={footerEnglishInput}
+                    onChange={(e) => setFooterEnglishInput(e.target.value)}
+                    placeholder="Preserving the photographic, calligraphic, and manuscript heritage..."
+                    className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">
+                    Displayed on the top-right of the footer card in place of link columns.
+                  </p>
+                </div>
+
+                {/* Footer Arabic / Urdu Text */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                    Footer Arabic / Urdu Text
+                  </label>
+                  <input
+                    type="text"
+                    dir="rtl"
+                    value={footerArabicInput}
+                    onChange={(e) => setFooterArabicInput(e.target.value)}
+                    placeholder="خدمتِ خلق • ذکرِ الٰہی • نشرِ قرآن مجید"
+                    className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-sm font-urdu text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 text-right"
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">
+                    Urdu / Arabic spiritual motto displayed beneath the English details line in Jameel Noori Nastaleeq font.
+                  </p>
+                </div>
+
+                {/* Social Media Links */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  {/* Facebook */}
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Facebook Page / Profile Link
+                    </label>
+                    <input
+                      type="url"
+                      value={facebookInputUrl}
+                      onChange={(e) => setFacebookInputUrl(e.target.value)}
+                      placeholder="https://facebook.com/your-page"
+                      className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    />
+                  </div>
+
+                  {/* WhatsApp */}
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      WhatsApp Link / Direct Chat URL
+                    </label>
+                    <input
+                      type="url"
+                      value={whatsappInputUrl}
+                      onChange={(e) => setWhatsappInputUrl(e.target.value)}
+                      placeholder="https://wa.me/923001234567"
+                      className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    />
+                  </div>
+
+                  {/* Instagram */}
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Instagram Profile Link
+                    </label>
+                    <input
+                      type="url"
+                      value={instagramInputUrl}
+                      onChange={(e) => setInstagramInputUrl(e.target.value)}
+                      placeholder="https://instagram.com/your-profile"
+                      className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    />
+                  </div>
+
+                  {/* TikTok */}
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      TikTok Account Link
+                    </label>
+                    <input
+                      type="url"
+                      value={tiktokInputUrl}
+                      onChange={(e) => setTiktokInputUrl(e.target.value)}
+                      placeholder="https://tiktok.com/@your-handle"
+                      className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Footer Live Preview */}
+                <div className="pt-2">
+                  <span className="block text-xs font-semibold text-neutral-700 mb-2">
+                    Live Footer Card Preview
+                  </span>
+                  <div className="bg-[#0b0c0e] text-white rounded-2xl p-5 border border-white/10 shadow-lg space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        {logoInputUrl ? (
+                          <img
+                            src={logoInputUrl}
+                            alt="Logo preview"
+                            className="h-8 w-auto object-contain max-w-[140px]"
+                          />
+                        ) : (
+                          <span className="font-semibold text-sm text-white">
+                            {hideSiteNameInput ? '' : 'Makalat-E-Hikmat'}
+                          </span>
+                        )}
+                        <span className="text-[11px] text-neutral-400 block mt-1">
+                          📍 Camp Dar-ul-Ehsan, Faisalabad
+                        </span>
+                      </div>
+                      <div className="text-left sm:text-right space-y-1 max-w-sm">
+                        <p className="text-[11px] text-neutral-400 leading-relaxed">
+                          {footerEnglishInput || 'Preserving the heritage...'}
+                        </p>
+                        <p className="font-urdu text-neutral-300 text-xs leading-relaxed">
+                          {footerArabicInput || 'خدمتِ خلق • ذکرِ الٰہی • نشرِ قرآن مجید'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="h-px bg-neutral-800" />
+                    <div className="flex items-center justify-between text-xs text-neutral-400">
+                      <div className="flex items-center gap-3 text-white">
+                        <span className="font-bold text-[11px]">Facebook</span>
+                        <span className="font-bold text-[11px]">WhatsApp</span>
+                        <span className="font-bold text-[11px]">Instagram</span>
+                        <span className="font-bold text-[11px]">TikTok</span>
+                      </div>
+                      <span className="text-[10px]">© 2026 Makalat-E-Hikmat</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SAVE BUTTONS */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-6 border-t border-neutral-200">
+                <button
+                  type="submit"
+                  disabled={isSavingLogo || isSavingAll}
+                  className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center gap-2"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSavingLogo || isSavingAll ? 'Pushing All Changes...' : 'Save All Changes & Push to GitHub'}</span>
+                </button>
+
+                {logoInputUrl && (
+                  <button
+                    type="button"
+                    onClick={handleClearLogo}
+                    disabled={isSavingLogo || isSavingAll}
+                    className="w-full sm:w-auto px-4 py-3 sm:py-2.5 border border-neutral-200 hover:bg-neutral-100 text-neutral-700 text-xs font-semibold rounded-xl transition-all cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center"
+                  >
+                    Clear Brand Logo
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: FOLDERS / STREAMS MANAGEMENT */}
+      {activeTab === 'streams' && (
+        <div className="space-y-8 sm:space-y-10">
+          <div className="bg-neutral-50/60 border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-2xl">
+            <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
+              <Layers className="w-4 h-4" />
+              <span>Create New Folder / Stream</span>
+            </h2>
+            <p className="text-xs text-neutral-500 mb-6">
+              Create folders (streams) to organize images. Visitors can filter by these folders via the navbar Streams button, and you can bulk-assign images to them from the Images tab.
+            </p>
+
+            <form onSubmit={handleAddStream} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Folder / Stream Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={streamTitle}
+                  onChange={(e) => setStreamTitle(e.target.value)}
+                  placeholder="e.g. Sacred Manuscripts, Camp Dar-ul-Ehsan, etc."
+                  className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Description (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={streamDescription}
+                  onChange={(e) => setStreamDescription(e.target.value)}
+                  placeholder="Short description of what this folder contains..."
+                  className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmittingStream}
+                className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center"
+              >
+                {isSubmittingStream ? 'Creating Folder...' : 'Add Folder / Stream'}
+              </button>
+            </form>
+          </div>
+
+          <div>
+            <h2 className="text-base font-bold text-neutral-900 mb-4">
+              Existing Folders / Streams ({streams.length})
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {streams.map((stream) => {
+                const count = images.filter((img) =>
+                  img.streamIds?.includes(stream.id)
+                ).length;
+
+                return (
+                  <div
+                    key={stream.id}
+                    className="p-5 bg-white border border-neutral-200 rounded-2xl flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <h3 className="font-semibold text-neutral-900 text-sm">
+                          {stream.title}
+                        </h3>
+                        <span className="text-[11px] bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-full font-mono">
+                          {count} images
+                        </span>
+                      </div>
+                      {stream.description && (
+                        <p className="text-xs text-neutral-500 mb-4">
+                          {stream.description}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="pt-3 border-t border-neutral-100 flex items-center justify-between text-xs">
+                      <span className="text-[11px] text-neutral-400 font-mono">
+                        Slug: {stream.slug}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteStream(stream.id)}
+                        className="text-neutral-400 hover:text-red-600 p-1 rounded-md transition-colors cursor-pointer"
+                        title="Delete stream"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: AUDIO MUSIC MANAGEMENT */}
+      {activeTab === 'audio' && (
+        <div className="space-y-8 sm:space-y-10">
+          <div className="bg-neutral-50/60 border border-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-2xl">
+            <h2 className="text-lg font-bold text-neutral-900 mb-1 flex items-center gap-2">
+              <Volume2 className="w-4 h-4" />
+              <span>Add Background Audio Music</span>
+            </h2>
+            <p className="text-xs text-neutral-500 mb-6">
+              Background music plays softly across the website, rotates every 10 minutes, and shuffles continuously. Visitors can toggle mute/unmute via the animated floating button.
+            </p>
+
+            <form onSubmit={handleAddAudio} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Audio Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={audioTitle}
+                  onChange={(e) => setAudioTitle(e.target.value)}
+                  placeholder="e.g. Serene Meditation Tone or Spiritual Flute"
+                  className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Audio Link or Local File Path <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={audioUrl}
+                  onChange={(e) => setAudioUrl(e.target.value)}
+                  placeholder="e.g. /music/my-melody.mp3 or https://..."
+                  className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                />
+                <p className="text-[11px] text-neutral-400 mt-1">
+                  You can drop any mp3 or wav files inside <code className="bg-neutral-100 px-1 py-0.5 rounded">public/music/</code> and reference them here as <code className="bg-neutral-100 px-1 py-0.5 rounded">/music/filename.mp3</code>, or provide external links.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Artist / Source (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={audioArtist}
+                  onChange={(e) => setAudioArtist(e.target.value)}
+                  placeholder="e.g. Dar-ul-Ehsan Ambient"
+                  className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmittingAudio}
+                className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer min-h-[44px] sm:min-h-0 flex items-center justify-center"
+              >
+                {isSubmittingAudio ? 'Adding Track...' : 'Add to Background Music Playlist'}
+              </button>
+            </form>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-bold text-neutral-900">
+                  Active Background Music Tracks ({audioTracks.length})
+                </h2>
+                <p className="text-xs text-neutral-400">
+                  Tracks automatically shuffle and change every 10 minutes on the live website.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-xs">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-neutral-50 border-b border-neutral-200 text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+                    <th className="py-3 px-4">Track Title</th>
+                    <th className="py-3 px-4">URL / Path</th>
+                    <th className="py-3 px-4">Audio Test Preview</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 text-xs">
+                  {audioTracks.map((track) => (
+                    <tr key={track.id} className="hover:bg-neutral-50/50">
+                      <td className="py-3 px-4 font-medium text-neutral-900">
+                        {track.title}
+                        {track.artist && (
+                          <span className="block text-[11px] text-neutral-400">
+                            {track.artist}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-neutral-600 truncate max-w-xs">
+                        {track.url}
+                      </td>
+                      <td className="py-3 px-4">
+                        <audio controls src={track.url} className="h-8 w-48" preload="none" />
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => handleDeleteAudio(track.id)}
+                          className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove track"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Image Modal */}
+      <EditImageModal
+        image={editingImage}
+        streams={streams}
+        previewUrlOverride={
+          editingImage && editingImage.url.startsWith('/uploads/')
+            ? localPreviewMap[editingImage.id]
+            : undefined
+        }
+        onClose={() => setEditingImage(null)}
+        onSave={handleSaveEditedImage}
+      />
+
+      {/* Sticky Floating Bottom Save Bar when unsaved changes exist */}
+      {pendingChanges.hasUnsavedChanges && (
+        <div className="fixed bottom-4 inset-x-3 sm:inset-x-auto sm:right-6 z-40 max-w-xl sm:ml-auto bg-neutral-950/95 backdrop-blur-md text-white border border-neutral-800 rounded-2xl p-3 sm:p-4 shadow-2xl flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-bold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+              <span>{pendingChanges.totalChanges} Unsaved Change{pendingChanges.totalChanges > 1 ? 's' : ''}</span>
+            </div>
+            <p className="text-[10px] text-neutral-400 truncate max-w-[200px] sm:max-w-xs">
+              {pendingChanges.summaryParts.join(' • ')}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleDiscardChanges}
+              disabled={isSavingAll}
+              className="px-2.5 py-2 rounded-xl border border-neutral-700 hover:bg-neutral-800 text-[11px] font-medium text-neutral-300 cursor-pointer"
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveAllChanges}
+              disabled={isSavingAll}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-xs font-bold rounded-xl shadow-sm cursor-pointer disabled:opacity-50"
+            >
+              {isSavingAll ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save All Changes</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden audio element for previewing hero audio tracks in admin */}
+      <audio
+        ref={adminAudioPreviewRef}
+        onEnded={() => setActivePreviewAudio(null)}
+        className="hidden"
+      />
+    </div>
+  );
+}
